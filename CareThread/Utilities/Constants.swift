@@ -85,6 +85,11 @@ enum Prompts {
     - yellow: Slightly off routine (less eating, shorter nap, etc.)
     - red: Notable concern or regression
 
+    If the parent has provided a PARENT MORNING NOTE or WAKE UP TIME before the daycare sheet, use that context \
+    to enrich your analysis. For example, a morning note saying "didn't sleep well, cranky at drop-off" \
+    should inform your mood rating. A very early wake up time may explain shorter naps or lower energy. \
+    Factor this context in naturally — don't create a separate section for it.
+
     Return ONLY the JSON object, no markdown formatting or explanation.
     """
 

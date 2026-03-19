@@ -54,15 +54,19 @@ struct EntryView: View {
             VStack(spacing: 16) {
                 daySelectorTabs
 
-                if hasParsedData {
-                    parsedResultsSection
-                } else if isWeekend {
+                if isWeekend {
                     weekendSection
                 } else {
-                    entryInputSection
+                    morningCheckInSection
+
+                    if hasParsedData {
+                        parsedResultsSection
+                    } else {
+                        daycareInputSection
+                    }
                 }
 
-                sleepAndNotesSection
+                eveningSection
             }
             .padding()
         }
@@ -102,13 +106,21 @@ struct EntryView: View {
         }
     }
 
-    // MARK: - Entry Input
+    // MARK: - Morning Check-In
 
-    private var entryInputSection: some View {
+    private var morningCheckInSection: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Text("Morning Check-In").font(.headline)
+
             VStack(alignment: .leading, spacing: 4) {
-                Text("Morning Note (optional)")
-                    .font(.subheadline.weight(.medium))
+                Text("Wake Up").font(.caption.weight(.medium))
+                TextField("e.g. 6:30", text: $wakeUpTime)
+                    .textFieldStyle(.roundedBorder)
+                    .keyboardType(.numbersAndPunctuation)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Morning Note").font(.subheadline.weight(.medium))
                 TextEditor(text: $morningNote)
                     .frame(minHeight: 60)
                     .padding(8)
@@ -117,8 +129,21 @@ struct EntryView: View {
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.border, lineWidth: 1))
             }
 
-            Divider()
+            Button {
+                saveMorningInfo()
+            } label: {
+                Label("Save Morning Info", systemImage: "sun.max")
+                    .frame(maxWidth: .infinity).padding(.vertical, 10)
+            }
+            .buttonStyle(.bordered)
+        }
+        .cardStyle()
+    }
 
+    // MARK: - Daycare Input
+
+    private var daycareInputSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
             Picker("Input Mode", selection: $inputMode) {
                 ForEach(InputMode.allCases, id: \.self) { mode in
                     Text(mode.rawValue).tag(mode)
@@ -281,25 +306,17 @@ struct EntryView: View {
         .cardStyle()
     }
 
-    // MARK: - Sleep & Notes
+    // MARK: - Evening
 
-    private var sleepAndNotesSection: some View {
+    private var eveningSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Home & Sleep").font(.headline)
+            Text("Evening").font(.headline)
 
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Wake Up").font(.caption.weight(.medium))
-                    TextField("e.g. 6:30", text: $wakeUpTime)
-                        .textFieldStyle(.roundedBorder)
-                        .keyboardType(.numbersAndPunctuation)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Bed Time").font(.caption.weight(.medium))
-                    TextField("e.g. 8:00", text: $bedTime)
-                        .textFieldStyle(.roundedBorder)
-                        .keyboardType(.numbersAndPunctuation)
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Bed Time").font(.caption.weight(.medium))
+                TextField("e.g. 8:00", text: $bedTime)
+                    .textFieldStyle(.roundedBorder)
+                    .keyboardType(.numbersAndPunctuation)
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -313,9 +330,9 @@ struct EntryView: View {
             }
 
             Button {
-                saveHomeAndSleep()
+                saveEveningInfo()
             } label: {
-                Label("Save Home & Sleep", systemImage: "checkmark.circle")
+                Label("Save Evening Info", systemImage: "moon.stars")
                     .frame(maxWidth: .infinity).padding(.vertical, 10)
             }
             .buttonStyle(.bordered)
@@ -329,9 +346,13 @@ struct EntryView: View {
         let week = getOrCreateWeek()
         do {
             let parsed: ParsedDayData
+            let contextPrefix = buildMorningContext()
             if inputMode == .text {
                 guard !inputText.isEmpty else { return }
-                parsed = try await apiService.parseDayEntry(text: inputText)
+                let enrichedText = contextPrefix.isEmpty
+                    ? inputText
+                    : contextPrefix + "\n\nDAYCARE SHEET:\n" + inputText
+                parsed = try await apiService.parseDayEntry(text: enrichedText)
                 week.entries[dayName] = inputText
             } else {
                 guard let image = selectedImage else { return }
@@ -341,7 +362,7 @@ struct EntryView: View {
             week.parsedEntries[dayName] = parsed
             if !morningNote.isEmpty { week.morningNotes[dayName] = morningNote }
             week.updatedAt = Date()
-            inputText = ""; morningNote = ""; selectedImage = nil; photoPickerItem = nil
+            inputText = ""; selectedImage = nil; photoPickerItem = nil
             toastIsError = false; toastMessage = "\(dayName) logged!"
         } catch {
             toastIsError = true; toastMessage = "Couldn't parse that — try again."
@@ -349,14 +370,70 @@ struct EntryView: View {
         }
     }
 
-    private func saveHomeAndSleep() {
+    private func saveMorningInfo() {
         let week = getOrCreateWeek()
-        if !eveningNote.isEmpty { week.eveningNotes[dayName] = eveningNote }
-        if !wakeUpTime.isEmpty || !bedTime.isEmpty {
-            week.sleepNotes[dayName] = SleepData(wakeUp: wakeUpTime, bedTime: bedTime)
+        if !morningNote.isEmpty { week.morningNotes[dayName] = morningNote }
+        let existingBedTime = week.sleepNotes[dayName]?.bedTime ?? bedTime
+        if !wakeUpTime.isEmpty {
+            week.sleepNotes[dayName] = SleepData(wakeUp: wakeUpTime, bedTime: existingBedTime)
         }
         week.updatedAt = Date()
-        toastIsError = false; toastMessage = "Saved!"
+
+        if hasParsedData {
+            Task { await reparseWithMorningContext() }
+        } else {
+            toastIsError = false; toastMessage = "Morning info saved!"
+        }
+    }
+
+    private func reparseWithMorningContext() async {
+        guard let week = currentWeek,
+              let rawEntry = week.entries[dayName] else {
+            toastIsError = false; toastMessage = "Morning info saved!"
+            return
+        }
+
+        if rawEntry == "[Screenshot]" {
+            toastIsError = false
+            toastMessage = "Morning info saved!"
+            return
+        }
+
+        do {
+            let contextPrefix = buildMorningContext()
+            let enrichedText = contextPrefix.isEmpty
+                ? rawEntry
+                : contextPrefix + "\n\nDAYCARE SHEET:\n" + rawEntry
+            let parsed = try await apiService.parseDayEntry(text: enrichedText)
+            week.parsedEntries[dayName] = parsed
+            week.updatedAt = Date()
+            toastIsError = false; toastMessage = "Morning info saved & summary refreshed!"
+        } catch {
+            toastIsError = false; toastMessage = "Morning info saved!"
+            print("Reparse error: \(error)")
+        }
+    }
+
+    private func buildMorningContext() -> String {
+        var context = ""
+        if !morningNote.isEmpty {
+            context += "PARENT MORNING NOTE: \(morningNote)\n"
+        }
+        if !wakeUpTime.isEmpty {
+            context += "WAKE UP TIME: \(wakeUpTime)\n"
+        }
+        return context
+    }
+
+    private func saveEveningInfo() {
+        let week = getOrCreateWeek()
+        if !eveningNote.isEmpty { week.eveningNotes[dayName] = eveningNote }
+        let existingWakeUp = week.sleepNotes[dayName]?.wakeUp ?? wakeUpTime
+        if !bedTime.isEmpty {
+            week.sleepNotes[dayName] = SleepData(wakeUp: existingWakeUp, bedTime: bedTime)
+        }
+        week.updatedAt = Date()
+        toastIsError = false; toastMessage = "Evening info saved!"
     }
 
     private func loadExistingData() {
@@ -373,4 +450,13 @@ struct EntryView: View {
         modelContext.insert(newWeek)
         return newWeek
     }
+}
+
+#Preview {
+    EntryView(
+        currentMonday: .constant(DateHelpers.mondayOfWeek(containing: Date())),
+        activeDay: .constant(0)
+    )
+    .environment(ClaudeAPIService())
+    .modelContainer(SampleData.previewContainer)
 }

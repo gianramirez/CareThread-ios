@@ -45,6 +45,7 @@ final class WeekEntry {
     /// Check if a day has any data (parsed entry, notes, or sleep)
     func hasData(for day: String) -> Bool {
         parsedEntries[day] != nil
+            || !(morningNotes[day]?.isEmpty ?? true)
             || !(eveningNotes[day]?.isEmpty ?? true)
             || sleepNotes[day] != nil
     }
