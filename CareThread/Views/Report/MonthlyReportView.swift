@@ -1,17 +1,19 @@
+//
+//  MonthlyReportView.swift
+//  CareThread
+//
+//  Created by Gian Ramirez on 3/18/26.
+//
+
 import SwiftUI
 import SwiftData
 
 // MARK: - MonthlyReportView
-// ─────────────────────────────────────────────────────────────────────
 // Maps to your React Monthly tab.
-//
-// In React: Month selector dropdown → Generate button → Report display
-// In SwiftUI: We use a Picker for the month selector (native dropdown).
-// ─────────────────────────────────────────────────────────────────────
 
 struct MonthlyReportView: View {
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject var apiService: ClaudeAPIService
+    @Environment(ClaudeAPIService.self) var apiService
 
     @Query private var allWeeks: [WeekEntry]
     @Query private var allSettings: [AppSettings]
@@ -21,9 +23,7 @@ struct MonthlyReportView: View {
     @State private var toastMessage: String?
     @State private var toastIsError = false
 
-    private var settings: AppSettings? {
-        allSettings.first
-    }
+    private var settings: AppSettings? { allSettings.first }
 
     private var currentMonthlyReport: MonthlyReport? {
         allMonthlyReports.first { $0.monthId == selectedMonth }
@@ -33,13 +33,9 @@ struct MonthlyReportView: View {
         DateHelpers.monthOptions()
     }
 
-    // MARK: - Body
-
     var body: some View {
         VStack(spacing: 0) {
-            // Month selector + generate button
             HStack(spacing: 12) {
-                // Picker is SwiftUI's <select> — with .menu style it shows as a dropdown
                 Picker("Month", selection: $selectedMonth) {
                     ForEach(monthOptions, id: \.value) { option in
                         Text(option.label).tag(option.value)
@@ -59,7 +55,6 @@ struct MonthlyReportView: View {
             .padding()
 
             if let report = currentMonthlyReport {
-                // Report display
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 12) {
@@ -90,7 +85,6 @@ struct MonthlyReportView: View {
                     .padding()
                 }
             } else {
-                // Empty state
                 VStack(spacing: 16) {
                     Spacer()
                     Image(systemName: "calendar.badge.clock")
@@ -116,19 +110,12 @@ struct MonthlyReportView: View {
         }
     }
 
-    // MARK: - Generate Monthly Report
-
-    /// Maps to your React generateMonthlyReport().
-    /// Fetches all weekly reports for the selected month, sends them to Claude.
     private func generateMonthlyReport() async {
         let mondayKeys = DateHelpers.mondaysInMonth(selectedMonth)
 
-        // Gather weekly reports for those Mondays
         let weeklyReports = mondayKeys.compactMap { key -> String? in
             guard let week = allWeeks.first(where: { $0.weekId == key }),
-                  let report = week.report, !report.isEmpty else {
-                return nil
-            }
+                  let report = week.report, !report.isEmpty else { return nil }
             return "### Week of \(key)\n\(report)"
         }
 
@@ -138,28 +125,22 @@ struct MonthlyReportView: View {
             return
         }
 
-        let combinedReports = weeklyReports.joined(separator: "\n\n---\n\n")
-
         do {
             let report = try await apiService.generateMonthlyReport(
-                weeklyReports: combinedReports,
+                weeklyReports: weeklyReports.joined(separator: "\n\n---\n\n"),
                 therapyContext: settings?.therapySchedule ?? ""
             )
 
-            // Save or update the monthly report
             if let existing = currentMonthlyReport {
                 existing.report = report
                 existing.createdAt = Date()
             } else {
-                let newReport = MonthlyReport(monthId: selectedMonth, report: report)
-                modelContext.insert(newReport)
+                modelContext.insert(MonthlyReport(monthId: selectedMonth, report: report))
             }
 
-            toastIsError = false
-            toastMessage = "Monthly report generated!"
+            toastIsError = false; toastMessage = "Monthly report generated!"
         } catch {
-            toastIsError = true
-            toastMessage = "Couldn't generate monthly report."
+            toastIsError = true; toastMessage = "Couldn't generate monthly report."
             print("Monthly report error: \(error)")
         }
     }

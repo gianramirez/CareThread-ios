@@ -1,20 +1,14 @@
+//
+//  WeekNavigator.swift
+//  CareThread
+//
+//  Created by Gian Ramirez on 3/18/26.
+//
+
 import SwiftUI
 
 // MARK: - WeekNavigator
-// ─────────────────────────────────────────────────────────────────────
 // Maps to your React header with < Week of Jan 15, 2026 > navigation.
-//
-// In React this was part of the monolithic App.jsx header.
-// In SwiftUI we extract it as a reusable component — good practice
-// for both frameworks, but SwiftUI's composition model makes it
-// more natural.
-//
-// SwiftUI concept: @Binding
-// In React: you'd pass `currentMonday` and `setCurrentMonday` as separate props
-// In SwiftUI: @Binding<Date> IS both the value and the setter in one.
-// When you write `$currentMonday` (with $), you pass the binding.
-// When you write `currentMonday` (without $), you read the value.
-// ─────────────────────────────────────────────────────────────────────
 
 struct WeekNavigator: View {
     @Binding var currentMonday: Date
@@ -32,7 +26,6 @@ struct WeekNavigator: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack {
-                // Previous week button
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         currentMonday = DateHelpers.offsetWeek(currentMonday, by: -1)
@@ -44,7 +37,6 @@ struct WeekNavigator: View {
 
                 Spacer()
 
-                // Week label + calendar dropdown
                 Button {
                     showCalendar.toggle()
                 } label: {
@@ -60,7 +52,6 @@ struct WeekNavigator: View {
 
                 Spacer()
 
-                // Next week button
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         currentMonday = DateHelpers.offsetWeek(currentMonday, by: 1)
@@ -74,7 +65,6 @@ struct WeekNavigator: View {
             }
             .padding(.horizontal)
 
-            // "Today" button (only shows when not on current week)
             if !isCurrentWeek {
                 Button {
                     withAnimation {
@@ -88,7 +78,6 @@ struct WeekNavigator: View {
                 .controlSize(.small)
             }
         }
-        // Calendar dropdown sheet
         .sheet(isPresented: $showCalendar) {
             CalendarDropdown(currentMonday: $currentMonday, isPresented: $showCalendar)
                 .presentationDetents([.medium])
@@ -96,13 +85,6 @@ struct WeekNavigator: View {
         }
     }
 }
-
-// MARK: - Calendar Dropdown
-// ─────────────────────────────────────────────────────────────────────
-// Maps to your React calendar <select> dropdown (last 13 weeks).
-// In SwiftUI, we present it as a sheet (bottom drawer) — more native
-// than a dropdown on iOS.
-// ─────────────────────────────────────────────────────────────────────
 
 struct CalendarDropdown: View {
     @Binding var currentMonday: Date
@@ -119,9 +101,7 @@ struct CalendarDropdown: View {
                         HStack {
                             Text(week.label)
                                 .foregroundStyle(.primary)
-
                             Spacer()
-
                             if DateHelpers.weekKey(for: week.monday)
                                 == DateHelpers.weekKey(for: currentMonday) {
                                 Image(systemName: "checkmark")

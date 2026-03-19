@@ -1,3 +1,10 @@
+//
+//  Theme.swift
+//  CareThread
+//
+//  Created by Gian Ramirez on 3/18/26.
+//
+
 import SwiftUI
 
 // MARK: - Theme
@@ -29,7 +36,6 @@ enum AppTheme {
     static let red = Color(red: 0.937, green: 0.267, blue: 0.267)     // #ef4444
 
     /// Get the Color for a StatusRating — used by StatusDot and StatusLabel.
-    /// In React: this was inline in the StatusDot component as a switch on rating.
     static func color(for rating: StatusRating) -> Color {
         switch rating {
         case .green: return green
@@ -40,39 +46,15 @@ enum AppTheme {
     }
 
     // MARK: - Semantic Colors
-    // These use SwiftUI's adaptive colors that automatically handle dark mode.
-    // No need for the T(dark) pattern from React!
-
-    /// Card background — slightly elevated from the main background
     static let cardBackground = Color(.secondarySystemBackground)
-
-    /// Input field background
     static let inputBackground = Color(.tertiarySystemBackground)
-
-    /// Subtle border color
     static let border = Color(.separator)
-
-    /// Muted text (like your textMuted in React)
     static let textMuted = Color(.tertiaryLabel)
-
-    /// Soft text (like your textSoft in React)
     static let textSoft = Color(.secondaryLabel)
 }
 
 // MARK: - View Modifiers
-// ─────────────────────────────────────────────────────────────────────
-// SwiftUI's version of reusable styled components.
-//
-// In React, your <Btn> component was a styled wrapper around <button>.
-// In SwiftUI, we use ViewModifiers — they're composable decorators
-// (like the Decorator pattern in Java) that you chain with .modifier().
-//
-// Even better, we can define them as extensions on View so they read
-// like natural SwiftUI modifiers: .cardStyle() instead of
-// .modifier(CardStyle())
-// ─────────────────────────────────────────────────────────────────────
 
-/// Reusable card styling — matches your React bgCard + shadow pattern
 struct CardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
@@ -83,7 +65,6 @@ struct CardModifier: ViewModifier {
     }
 }
 
-/// Active/selected tab button style
 struct ActiveTabStyle: ViewModifier {
     let isActive: Bool
 
@@ -98,7 +79,6 @@ struct ActiveTabStyle: ViewModifier {
     }
 }
 
-// Convenience extensions — so you can write .cardStyle() instead of .modifier(CardModifier())
 extension View {
     func cardStyle() -> some View {
         modifier(CardModifier())

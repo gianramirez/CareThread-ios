@@ -1,151 +1,175 @@
+//
+//  DateHelpers.swift
+//  CareThread
+//
+//  Created by Gian Ramirez on 3/18/26.
+//
+
 import Foundation
 
 // MARK: - DateHelpers
 // ─────────────────────────────────────────────────────────────────────
-// Translates all the date utility functions from your React app.
+// Translates all your React date utility functions to Swift.
 //
-// In React, you used raw JS Date objects and manual math.
-// In Swift, we use Calendar and DateFormatter — think of Calendar as
-// Java's java.time.LocalDate utilities, and DateFormatter as
-// java.time.format.DateTimeFormatter.
+// In React: getMondayOfWeek(), formatWeekLabel(), weekKey(), etc.
+// These were standalone functions in App.jsx.
 //
-// Key Swift concept: `Calendar.current` is locale-aware and handles
-// all the edge cases (DST, week boundaries) that you'd manually
-// handle in JS.
+// In Swift: We group them as static methods on a DateHelpers enum.
+// Using an enum with no cases (instead of a struct or class) is a Swift
+// pattern for "namespaces" — it prevents accidental instantiation.
+// In Java terms: like a utility class with a private constructor.
+//
+// KEY CONCEPT — Calendar vs Date:
+// Swift separates "a point in time" (Date) from "how we interpret it"
+// (Calendar). This is like Java's Instant vs LocalDate/ZonedDateTime.
+//
+// Date ≈ Java's Instant (absolute timestamp)
+// Calendar ≈ Java's ZoneId + locale rules
+// DateComponents ≈ Java's LocalDate/LocalTime fields
+// DateFormatter ≈ Java's DateTimeFormatter
 // ─────────────────────────────────────────────────────────────────────
 
 enum DateHelpers {
-    // Using an enum with no cases as a namespace — like a Java utility class
-    // with a private constructor. Can't be instantiated, just holds static methods.
+    // MARK: - Constants
 
-    /// The 7 day names used as dictionary keys throughout the app
+    /// Full day names — matches your React DAYS array
     static let dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
-    /// Weekday-only names (Mon–Fri) for settings/routine
+    /// Weekday-only names (Mon-Fri) — used in settings
     static let weekdayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+
+    /// Short day labels for the day selector tabs
+    static let shortDayNames = ["M", "T", "W", "T", "F", "S", "S"]
 
     // MARK: - Week Calculations
 
     /// Get the Monday of the week containing the given date.
-    /// React equivalent: getMondayOfWeek(date)
+    /// Maps to your React: getMondayOfWeek(date)
     ///
-    /// In JS you did: d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
-    /// Swift's Calendar makes this much cleaner.
+    /// Calendar.current automatically uses the device's locale and timezone.
+    /// In Java: this would be `date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))`
     static func mondayOfWeek(containing date: Date) -> Date {
-        let cal = Calendar(identifier: .iso8601)  // ISO 8601 weeks start on Monday
-        let components = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
-        return cal.date(from: components)!
+        let calendar = Calendar.current
+        // Get the weekday (1=Sunday, 2=Monday, ..., 7=Saturday in Gregorian)
+        let weekday = calendar.component(.weekday, from: date)
+        // Calculate days to subtract to get to Monday
+        let daysFromMonday = (weekday + 5) % 7  // Converts to 0=Mon, 1=Tue, ..., 6=Sun
+        return calendar.date(byAdding: .day, value: -daysFromMonday, to: calendar.startOfDay(for: date))!
     }
 
-    /// Generate the week key string ("YYYY-MM-DD") for a Monday date.
-    /// React equivalent: weekKey(monday) — used as the database primary key.
+    /// Generate the week key string — matches your React weekKey(monday)
+    /// Format: "YYYY-MM-DD"
     static func weekKey(for monday: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone.current
         return formatter.string(from: monday)
     }
 
-    /// Get the Date for a specific day index (0=Monday, 6=Sunday) in a week.
-    /// React equivalent: dateForDay(monday, dayIndex)
-    static func date(for dayIndex: Int, in mondayDate: Date) -> Date {
-        Calendar.current.date(byAdding: .day, value: dayIndex, to: mondayDate)!
-    }
-
-    // MARK: - Navigation
-
-    /// Move forward or backward by one week.
-    /// React equivalent: goWeek(dir) where dir is +1 or -1
-    static func offsetWeek(_ monday: Date, by weeks: Int) -> Date {
-        Calendar.current.date(byAdding: .weekOfYear, value: weeks, to: monday)!
-    }
-
-    /// Check if a date is in the future (prevents navigating to future weeks).
-    static func isFutureWeek(_ monday: Date) -> Bool {
-        let today = mondayOfWeek(containing: Date())
-        return monday > today
-    }
-
-    // MARK: - Formatting
-
-    /// Format as "Jan 15, 2026" — used in the week navigation header.
-    /// React equivalent: formatWeekLabel(monday)
-    static func formatWeekLabel(_ date: Date) -> String {
+    /// Format the week label — matches your React formatWeekLabel(monday)
+    /// Example: "Jan 15, 2026"
+    static func formatWeekLabel(_ monday: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy"
-        return formatter.string(from: date)
+        return formatter.string(from: monday)
     }
 
-    /// Format as "1/15" — short date for day tabs.
-    /// React equivalent: fmtShort(date)
-    static func formatShort(_ date: Date) -> String {
+    /// Get the date for a specific day index within a week.
+    /// Maps to your React: dateForDay(monday, dayIndex)
+    /// dayIndex: 0=Monday, 1=Tuesday, ..., 6=Sunday
+    static func dateForDay(monday: Date, dayIndex: Int) -> Date {
+        Calendar.current.date(byAdding: .day, value: dayIndex, to: monday)!
+    }
+
+    /// Short date format — matches your React fmtShort(date)
+    /// Example: "1/15"
+    static func fmtShort(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "M/d"
         return formatter.string(from: date)
     }
 
-    /// Format day tab label: "Mon 1/15"
+    /// Tab label for a day (short name + date)
+    /// Example: "M 1/15"
     static func dayTabLabel(dayIndex: Int, monday: Date) -> String {
-        let d = date(for: dayIndex, in: monday)
-        let short = dayNames[dayIndex].prefix(3)  // "Mon", "Tue", etc.
-        return "\(short) \(formatShort(d))"
+        let date = dateForDay(monday: monday, dayIndex: dayIndex)
+        return "\(shortDayNames[dayIndex]) \(fmtShort(date))"
     }
 
-    // MARK: - Month Helpers
+    // MARK: - Week Navigation
 
-    /// Get the last 6 months as (label, "YYYY-MM") tuples.
-    /// React equivalent: getMonthOptions()
-    static func monthOptions() -> [(label: String, value: String)] {
-        let cal = Calendar.current
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
+    /// Offset the current Monday by a number of weeks.
+    /// Maps to your React: goWeek(dir) where dir is +1 or -1
+    static func offsetWeek(_ monday: Date, by weeks: Int) -> Date {
+        Calendar.current.date(byAdding: .weekOfYear, value: weeks, to: monday)!
+    }
 
-        let keyFormatter = DateFormatter()
-        keyFormatter.dateFormat = "yyyy-MM"
+    /// Check if a week is in the future (prevent navigating forward)
+    static func isFutureWeek(_ monday: Date) -> Bool {
+        let currentMonday = mondayOfWeek(containing: Date())
+        return monday > currentMonday
+    }
 
-        return (0..<6).map { offset in
-            let month = cal.date(byAdding: .month, value: -offset, to: Date())!
-            return (label: formatter.string(from: month), value: keyFormatter.string(from: month))
+    /// Check if a day index is a weekend day
+    static func isWeekend(_ dayIndex: Int) -> Bool {
+        dayIndex >= 5  // 5=Saturday, 6=Sunday
+    }
+
+    // MARK: - Calendar Dropdown
+
+    /// Get the last 13 weeks for the calendar dropdown.
+    /// Maps to your React: getCalendarWeeks()
+    static func calendarWeeks() -> [(monday: Date, label: String)] {
+        let currentMonday = mondayOfWeek(containing: Date())
+        return (0..<13).map { weeksBack in
+            let monday = offsetWeek(currentMonday, by: -weeksBack)
+            let endOfWeek = dateForDay(monday: monday, dayIndex: 6)
+            let label = "\(formatWeekLabel(monday)) – \(fmtShort(endOfWeek))"
+            return (monday: monday, label: label)
         }
     }
 
-    /// Get all Mondays that fall within a given month ("YYYY-MM").
-    /// React equivalent: getMondaysInMonth(yearMonth)
-    /// Used to fetch weekly reports for monthly report generation.
+    // MARK: - Month Calculations
+
+    /// Get month options (last 6 months) for the monthly report picker.
+    /// Maps to your React: getMonthOptions()
+    static func monthOptions() -> [(label: String, value: String)] {
+        let calendar = Calendar.current
+        let now = Date()
+        let formatter = DateFormatter()
+
+        return (0..<6).map { monthsBack in
+            let date = calendar.date(byAdding: .month, value: -monthsBack, to: now)!
+            formatter.dateFormat = "yyyy-MM"
+            let value = formatter.string(from: date)
+            formatter.dateFormat = "MMMM yyyy"
+            let label = formatter.string(from: date)
+            return (label: label, value: value)
+        }
+    }
+
+    /// Get all Monday dates that fall within a given month.
+    /// Maps to your React: getMondaysInMonth(yearMonth)
+    /// Input: "2026-03" → returns ["2026-03-02", "2026-03-09", ...]
     static func mondaysInMonth(_ yearMonth: String) -> [String] {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM"
         guard let startOfMonth = formatter.date(from: yearMonth) else { return [] }
 
-        let cal = Calendar.current
-        guard let range = cal.range(of: .day, in: .month, for: startOfMonth) else { return [] }
+        let calendar = Calendar.current
+        guard let range = calendar.range(of: .day, in: .month, for: startOfMonth) else { return [] }
 
         let keyFormatter = DateFormatter()
         keyFormatter.dateFormat = "yyyy-MM-dd"
 
-        var mondays: Set<String> = []
+        var mondays: [String] = []
         for day in range {
-            guard let date = cal.date(byAdding: .day, value: day - 1, to: startOfMonth) else { continue }
-            let monday = mondayOfWeek(containing: date)
-            mondays.insert(keyFormatter.string(from: monday))
+            if let date = calendar.date(byAdding: .day, value: day - 1, to: startOfMonth) {
+                let weekday = calendar.component(.weekday, from: date)
+                if weekday == 2 {  // Monday
+                    mondays.append(keyFormatter.string(from: date))
+                }
+            }
         }
-
-        return mondays.sorted()
-    }
-
-    /// Get the last 13 weeks as (label, monday Date) tuples for the calendar dropdown.
-    /// React equivalent: getCalendarWeeks()
-    static func calendarWeeks() -> [(label: String, monday: Date)] {
-        let thisMonday = mondayOfWeek(containing: Date())
-        return (0..<13).map { offset in
-            let monday = offsetWeek(thisMonday, by: -offset)
-            let label = "Week of \(formatWeekLabel(monday))"
-            return (label: label, monday: monday)
-        }
-    }
-
-    /// Check if a day index represents a weekend (5=Saturday, 6=Sunday)
-    static func isWeekend(_ dayIndex: Int) -> Bool {
-        dayIndex >= 5
+        return mondays
     }
 }

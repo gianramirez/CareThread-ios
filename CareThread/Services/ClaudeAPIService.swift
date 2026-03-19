@@ -1,29 +1,21 @@
+//
+//  ClaudeAPIService.swift
+//  CareThread
+//
+//  Created by Gian Ramirez on 3/18/26.
+//
+
 import Foundation
-import UIKit  // For UIImage → base64 conversion
+import Observation
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+typealias UIImage = NSImage
+#endif
 
 // MARK: - ClaudeAPIService
-// ─────────────────────────────────────────────────────────────────────
-// Translates your React `callClaude(system, messages)` function and
-// the Vercel proxy at `/api/claude`.
-//
-// ARCHITECTURE (Backend Proxy Pattern):
-// ┌──────────┐     ┌──────────────────┐     ┌──────────────────┐
-// │  iOS App  │────▶│  Your Proxy      │────▶│  Anthropic API   │
-// │           │     │  (Cloudflare/    │     │                  │
-// │  (no key) │     │   Supabase)      │     │  (key lives here)│
-// └──────────┘     └──────────────────┘     └──────────────────┘
-//
-// WHY: App Store apps can be decompiled. If you ship an API key in
-// the binary, anyone can extract it. Your proxy holds the key server-side,
-// just like your Vercel function does today.
-//
-// Java equivalent: This is like a @Service class with a RestTemplate
-// (or WebClient) that calls your backend. The async/await pattern in
-// Swift maps almost 1:1 to Java's CompletableFuture, but with cleaner
-// syntax.
-//
-// React equivalent: Your `callClaude(system, messages)` fetch() call.
-// ─────────────────────────────────────────────────────────────────────
+
 
 /// Errors that can occur during API calls
 enum ClaudeAPIError: LocalizedError {
@@ -33,7 +25,6 @@ enum ClaudeAPIError: LocalizedError {
     case decodingError(String)
     case noContent
 
-    // LocalizedError requires `errorDescription` — like getMessage() in Java exceptions
     var errorDescription: String? {
         switch self {
         case .invalidURL:
@@ -51,29 +42,23 @@ enum ClaudeAPIError: LocalizedError {
 }
 
 // MARK: - API Response Types
-// These match the JSON structure returned by the Anthropic API.
-// In React you just accessed response.content[0].text directly.
-// In Swift, we define Codable structs so the JSON decoder can
-// type-check everything at compile time.
 
-struct ClaudeResponse: Codable {
+struct ClaudeResponse: Codable, Sendable {
     let content: [ContentBlock]
 }
 
-struct ContentBlock: Codable {
+struct ContentBlock: Codable, Sendable {
     let type: String
     let text: String?
 }
 
-// MARK: - Message Types (for building requests)
+// MARK: - Message Types
 
-/// A single message in the Claude conversation
-struct ClaudeMessage: Codable {
+struct ClaudeMessage: Codable, Sendable {
     let role: String
     let content: MessageContent
 
-    /// Content can be a simple string OR an array of content blocks (for images)
-    enum MessageContent: Codable {
+    enum MessageContent: Codable, Sendable {
         case text(String)
         case blocks([MessageBlock])
 
@@ -98,18 +83,16 @@ struct ClaudeMessage: Codable {
     }
 }
 
-/// A content block within a message — either text or an image
-struct MessageBlock: Codable {
+struct MessageBlock: Codable, Sendable {
     let type: String
     let text: String?
     let source: ImageSource?
 }
 
-/// Base64-encoded image source for Claude's vision API
-struct ImageSource: Codable {
-    let type: String  // Always "base64"
-    let mediaType: String  // "image/jpeg", "image/png"
-    let data: String  // Base64-encoded image data
+struct ImageSource: Codable, Sendable {
+    let type: String
+    let mediaType: String
+    let data: String
 
     enum CodingKeys: String, CodingKey {
         case type
@@ -120,86 +103,48 @@ struct ImageSource: Codable {
 
 // MARK: - The Service
 
-/// Main service class for all Claude API interactions.
+/// Using @Observable (Swift 5.9+ / Observation framework) instead of
+/// ObservableObject + @Published. This is the modern approach and works
+/// cleanly with Swift 6 strict concurrency.
 ///
-/// Usage:
-/// ```swift
-/// let service = ClaudeAPIService()
-/// let parsed = try await service.parseDayEntry(text: "Today Johnny ate all his lunch...")
-/// ```
-///
-/// @MainActor ensures all published properties update on the main thread
-/// (like React's setState — UI updates must happen on the main thread).
-@MainActor
-class ClaudeAPIService: ObservableObject {
-    // ─── Configuration ───────────────────────────────────────────
-    // In React, the URL was hardcoded to "/api/claude" (relative to origin).
-    // Here we make it configurable so you can point it at your proxy.
-
-    /// The base URL of your backend proxy.
-    /// Production: Your Cloudflare Worker or Supabase Edge Function URL
-    /// Development: http://localhost:3001/api/claude (your Express server)
+/// In React terms: @Observable makes every property automatically
+/// trigger re-renders, like if every field had useState() built in.
+/// No need for @Published wrappers.
+@Observable
+class ClaudeAPIService {
     private var baseURL: String
-
-    /// Maximum tokens for Claude responses
     private let maxTokens = 1024
-
-    /// Claude model identifier
     private let model = "claude-sonnet-4-20250514"
-
-    // ─── Debug-only API key ──────────────────────────────────────
-    // ⚠️ FOR LOCAL DEVELOPMENT ONLY — NEVER SHIP THIS IN PRODUCTION
-    // Set via: Edit Scheme → Run → Environment Variables → ANTHROPIC_API_KEY
-    //
-    // When set, the service calls Anthropic directly (bypassing proxy).
-    // When nil, it calls your proxy (production behavior).
     private var debugAPIKey: String?
 
-    // ─── Published state for UI binding ──────────────────────────
-    // @Published is SwiftUI's version of React's useState.
-    // Any View observing this service will re-render when these change.
-    @Published var isLoading = false
-    @Published var loadingMessage = ""
+    var isLoading = false
+    var loadingMessage = ""
 
     // MARK: - Initialization
 
-    init(
-        baseURL: String = AppConfig.apiBaseURL,
-        debugAPIKey: String? = AppConfig.debugAPIKey
-    ) {
-        self.baseURL = baseURL
-        self.debugAPIKey = debugAPIKey
+    init() {
+        self.baseURL = AppConfig.apiBaseURL
+        self.debugAPIKey = AppConfig.debugAPIKey
     }
 
     // MARK: - Core API Call
 
-    /// The core method — equivalent to your React `callClaude(system, messages)`.
-    ///
-    /// `async throws` is Swift's version of returning a Promise that can reject.
-    /// - In Java: `CompletableFuture<String>` that can throw
-    /// - In React: `async function callClaude()` with try/catch
-    ///
-    /// The `await` keyword at call sites is like JS's `await` — it suspends
-    /// execution until the network call completes, but does NOT block the UI thread.
     func callClaude(system: String, messages: [ClaudeMessage]) async throws -> String {
-        // Determine if we're calling the proxy or Anthropic directly
-        let (url, headers) = try buildRequest()
+        let (url, headers) = buildRequest()
 
-        // Build the request body — matches your React fetch() body
         var body: [String: Any] = [
             "model": model,
             "max_tokens": maxTokens,
             "system": system,
         ]
 
-        // Encode messages manually (because MessageContent is an enum)
-        let encodedMessages = try messages.map { msg -> [String: Any] in
+        let encodedMessages = messages.map { msg -> [String: Any] in
             var dict: [String: Any] = ["role": msg.role]
             switch msg.content {
             case .text(let string):
                 dict["content"] = string
             case .blocks(let blocks):
-                dict["content"] = try blocks.map { block -> [String: Any] in
+                dict["content"] = blocks.map { block -> [String: Any] in
                     var blockDict: [String: Any] = ["type": block.type]
                     if let text = block.text { blockDict["text"] = text }
                     if let source = block.source {
@@ -216,19 +161,20 @@ class ClaudeAPIService: ObservableObject {
         }
         body["messages"] = encodedMessages
 
-        // Create the URLRequest — like building a fetch() Request in JS
-        var request = URLRequest(url: url)
+        guard let requestURL = url else {
+            throw ClaudeAPIError.invalidURL
+        }
+
+        var request = URLRequest(url: requestURL)
         request.httpMethod = "POST"
-        request.timeoutInterval = 60  // 60 second timeout
+        request.timeoutInterval = 60
         for (key, value) in headers {
             request.setValue(value, forHTTPHeaderField: key)
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        // Make the network call — this is the `await fetch()` equivalent
         let (data, response) = try await URLSession.shared.data(for: request)
 
-        // Check HTTP status — like checking response.ok in fetch()
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ClaudeAPIError.networkError(
                 NSError(domain: "Invalid response type", code: 0)
@@ -236,14 +182,12 @@ class ClaudeAPIService: ObservableObject {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            // Try to get error details from response body
             if let errorText = String(data: data, encoding: .utf8) {
                 print("API Error (\(httpResponse.statusCode)): \(errorText)")
             }
             throw ClaudeAPIError.invalidResponse(statusCode: httpResponse.statusCode)
         }
 
-        // Decode the response — like JSON.parse() in JS
         let decoded = try JSONDecoder().decode(ClaudeResponse.self, from: data)
 
         guard let text = decoded.content.first?.text else {
@@ -255,14 +199,10 @@ class ClaudeAPIService: ObservableObject {
 
     // MARK: - High-Level Methods
 
-    /// Parse a daycare daily sheet from text.
-    /// React equivalent: parseEntry() when inputMode === "text"
     func parseDayEntry(text: String) async throws -> ParsedDayData {
         isLoading = true
         loadingMessage = "Reading daycare sheet..."
         defer {
-            // `defer` runs when the scope exits — like Java's finally block.
-            // Ensures we always stop the loading state, even if an error is thrown.
             isLoading = false
             loadingMessage = ""
         }
@@ -273,8 +213,6 @@ class ClaudeAPIService: ObservableObject {
         return try decodeParsedDay(from: responseText)
     }
 
-    /// Parse a daycare daily sheet from a screenshot image.
-    /// React equivalent: parseEntry() when inputMode === "image"
     func parseDayEntry(image: UIImage) async throws -> ParsedDayData {
         isLoading = true
         loadingMessage = "Analyzing screenshot..."
@@ -283,13 +221,19 @@ class ClaudeAPIService: ObservableObject {
             loadingMessage = ""
         }
 
-        // Convert UIImage to base64 — like FileReader.readAsDataURL() in JS
+        #if canImport(UIKit)
         guard let imageData = image.jpegData(compressionQuality: 0.8) else {
             throw ClaudeAPIError.decodingError("Could not convert image to JPEG")
         }
+        #elseif canImport(AppKit)
+        guard let tiffData = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiffData),
+              let imageData = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) else {
+            throw ClaudeAPIError.decodingError("Could not convert image to JPEG")
+        }
+        #endif
         let base64String = imageData.base64EncodedString()
 
-        // Build a multi-block message with image + text (Claude vision API)
         let blocks: [MessageBlock] = [
             MessageBlock(
                 type: "image",
@@ -308,11 +252,6 @@ class ClaudeAPIService: ObservableObject {
         return try decodeParsedDay(from: responseText)
     }
 
-    /// Generate weekly reports (parent + care team) — runs BOTH in parallel.
-    /// React equivalent: generateReport() with Promise.all([parent, careTeam])
-    ///
-    /// `async let` is Swift's version of starting parallel async operations.
-    /// It's like calling two fetch()s and then Promise.all()-ing them.
     func generateWeeklyReports(
         weekData: String,
         routineContext: String,
@@ -325,7 +264,6 @@ class ClaudeAPIService: ObservableObject {
             loadingMessage = ""
         }
 
-        // Build the full context message (same format as your React app)
         var fullMessage = ""
         if !routineContext.isEmpty {
             fullMessage += "CHILD'S WEEKLY ROUTINE:\n\(routineContext)\n\n"
@@ -337,8 +275,6 @@ class ClaudeAPIService: ObservableObject {
 
         let message = ClaudeMessage(role: "user", content: .text(fullMessage))
 
-        // Fire both API calls in parallel — this is the Swift equivalent of:
-        //   const [parent, care] = await Promise.all([...])
         async let parentReport = callClaude(
             system: Prompts.weeklyReport,
             messages: [message]
@@ -348,12 +284,9 @@ class ClaudeAPIService: ObservableObject {
             messages: [message]
         )
 
-        // Await both results — if either fails, the error propagates
         return try await (parentReport: parentReport, careReport: careReport)
     }
 
-    /// Generate monthly report from weekly reports.
-    /// React equivalent: generateMonthlyReport()
     func generateMonthlyReport(
         weeklyReports: String,
         therapyContext: String
@@ -377,14 +310,10 @@ class ClaudeAPIService: ObservableObject {
 
     // MARK: - Private Helpers
 
-    /// Determine the URL and headers based on whether we're in debug or production mode.
-    private func buildRequest() throws -> (URL, [String: String]) {
+    /// Returns (URL?, headers) — no longer throws, just returns nil URL on bad input
+    private func buildRequest() -> (URL?, [String: String]) {
         if let apiKey = debugAPIKey, !apiKey.isEmpty {
-            // ⚠️ DEBUG MODE: Calling Anthropic directly
-            // This bypasses your proxy — only for local testing!
-            guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
-                throw ClaudeAPIError.invalidURL
-            }
+            let url = URL(string: "https://api.anthropic.com/v1/messages")
             let headers = [
                 "Content-Type": "application/json",
                 "x-api-key": apiKey,
@@ -392,11 +321,7 @@ class ClaudeAPIService: ObservableObject {
             ]
             return (url, headers)
         } else {
-            // 🔒 PRODUCTION MODE: Calling your backend proxy
-            // The proxy adds the API key server-side
-            guard let url = URL(string: baseURL) else {
-                throw ClaudeAPIError.invalidURL
-            }
+            let url = URL(string: baseURL)
             let headers = [
                 "Content-Type": "application/json"
             ]
@@ -404,11 +329,7 @@ class ClaudeAPIService: ObservableObject {
         }
     }
 
-    /// Parse Claude's JSON response into our ParsedDayData struct.
-    /// In React you did JSON.parse(responseText).
-    /// Swift's JSONDecoder is like Jackson's ObjectMapper in Spring Boot.
     private func decodeParsedDay(from text: String) throws -> ParsedDayData {
-        // Claude sometimes wraps JSON in markdown code fences — strip them
         var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if cleaned.hasPrefix("```json") {
             cleaned = String(cleaned.dropFirst(7))
@@ -433,26 +354,14 @@ class ClaudeAPIService: ObservableObject {
 }
 
 // MARK: - App Configuration
-// ─────────────────────────────────────────────────────────────────────
-// Centralized config — like application.properties in Spring Boot.
-//
-// In production, only `apiBaseURL` is used (points to your proxy).
-// The `debugAPIKey` is ONLY populated from Xcode's environment variables
-// during development.
-// ─────────────────────────────────────────────────────────────────────
 
-enum AppConfig {
-    /// Your backend proxy URL.
-    /// Replace with your Cloudflare Worker or Supabase Edge Function URL.
-    /// During local dev, you can point this at your Express server.
+/// Marked nonisolated(unsafe) so these static values can be read
+/// from the MainActor-isolated init without complaints.
+/// These are effectively constants (apiBaseURL is a let, debugAPIKey
+/// reads an immutable environment variable).
+nonisolated enum AppConfig {
     static let apiBaseURL = "https://your-proxy.workers.dev/api/claude"
 
-    /// Debug API key — reads from Xcode environment variable.
-    /// Set via: Product → Scheme → Edit Scheme → Run → Environment Variables
-    /// Add: ANTHROPIC_API_KEY = sk-ant-...
-    ///
-    /// ⚠️ This is NEVER included in the compiled app binary.
-    /// ProcessInfo.processInfo.environment only works in the Xcode debugger.
     static var debugAPIKey: String? {
         let key = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"]
         return (key?.isEmpty ?? true) ? nil : key

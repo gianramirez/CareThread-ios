@@ -1,13 +1,12 @@
+//
+//  MonthlyReport.swift
+//  CareThread
+//
+//  Created by Gian Ramirez on 3/18/26.
+//
+
 import Foundation
 import SwiftData
-
-// MARK: - MonthlyReport
-// ─────────────────────────────────────────────────────────────────────
-// Maps to your React `monthly_reports` table in Supabase.
-// In React: { id: "2026-03", report: "## Monthly Summary...", created_at: ... }
-//
-// Simple model — just stores the generated report text keyed by month.
-// ─────────────────────────────────────────────────────────────────────
 
 @Model
 final class MonthlyReport {

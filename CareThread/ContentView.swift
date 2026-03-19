@@ -8,59 +8,45 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - ContentView
+// ─────────────────────────────────────────────────────────────────────
+// The root view — acts as a gate between the PIN lock and the main app.
+//
+// In React: Your top-level App component checked `unlocked` state and
+// rendered either <PinScreen> or the main dashboard.
+//
+// In SwiftUI: We use a conditional view that shows PinLockView as a
+// fullScreenCover (modal overlay) when the app is locked.
+//
+// KEY CONCEPT — @AppStorage:
+// Like localStorage in the browser, @AppStorage reads/writes to
+// UserDefaults (iOS's built-in key-value store). But unlike your React
+// sessionStorage approach, UserDefaults persists across app launches.
+// We use it here for lightweight settings; SwiftData handles the heavy data.
+// ─────────────────────────────────────────────────────────────────────
+
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Query private var allSettings: [AppSettings]
+    @State private var isUnlocked = false
+
+    @State private var apiService = ClaudeAPIService()
+
+    private var hasPinSet: Bool {
+        guard let settings = allSettings.first else { return false }
+        return !settings.pinCode.isEmpty
+    }
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
+        MainTabView()
+            .environment(apiService)
+            // Show PIN lock as a full-screen modal when locked
+            .fullScreenCover(isPresented: Binding(
+                get: { hasPinSet && !isUnlocked },
+                set: { if !$0 { isUnlocked = true } }
+            )) {
+                if let pin = allSettings.first?.pinCode {
+                    PinLockView(correctPin: pin, isUnlocked: $isUnlocked)
                 }
             }
-        } detail: {
-            Text("Select an item")
-        }
     }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
-        }
-    }
-}
-
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }

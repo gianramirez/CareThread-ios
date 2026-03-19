@@ -1,19 +1,14 @@
+//
+//  PinLockView.swift
+//  CareThread
+//
+//  Created by Gian Ramirez on 3/18/26.
+//
+
 import SwiftUI
 
 // MARK: - PinLockView
-// ─────────────────────────────────────────────────────────────────────
 // Maps to your React PinScreen component.
-//
-// In React: Shown when unlocked === false, checks against settings.pin_code
-// In SwiftUI: This is a full-screen view shown via .fullScreenCover()
-//
-// New SwiftUI concepts here:
-// - @State: Local component state (like useState in React)
-// - @FocusState: Controls keyboard focus (no React equivalent — you'd
-//   use refs and .focus() manually)
-// - @Binding: A two-way reference to parent state (like passing a
-//   setState function as a prop in React, but with cleaner syntax)
-// ─────────────────────────────────────────────────────────────────────
 
 struct PinLockView: View {
     let correctPin: String
@@ -27,7 +22,6 @@ struct PinLockView: View {
         VStack(spacing: 24) {
             Spacer()
 
-            // App icon / header
             Image(systemName: "lock.shield.fill")
                 .font(.system(size: 60))
                 .foregroundStyle(AppTheme.accent)
@@ -39,7 +33,6 @@ struct PinLockView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            // PIN input field
             SecureField("PIN", text: $enteredPin)
                 .keyboardType(.numberPad)
                 .textContentType(.password)
@@ -52,7 +45,6 @@ struct PinLockView: View {
                 .focused($isFocused)
                 .onSubmit { checkPin() }
                 .onChange(of: enteredPin) { _, newValue in
-                    // Auto-submit when PIN length matches
                     if newValue.count >= correctPin.count {
                         checkPin()
                     }
@@ -65,7 +57,6 @@ struct PinLockView: View {
                     .transition(.opacity)
             }
 
-            // Unlock button
             Button {
                 checkPin()
             } label: {
@@ -81,23 +72,17 @@ struct PinLockView: View {
             Spacer()
         }
         .padding()
-        .onAppear {
-            // Auto-focus the PIN field when view appears
-            isFocused = true
-        }
+        .onAppear { isFocused = true }
     }
 
     private func checkPin() {
         if enteredPin == correctPin {
-            withAnimation {
-                isUnlocked = true
-            }
+            withAnimation { isUnlocked = true }
         } else {
             withAnimation {
                 showError = true
                 enteredPin = ""
             }
-            // Clear error after 2 seconds
             Task {
                 try? await Task.sleep(for: .seconds(2))
                 withAnimation { showError = false }

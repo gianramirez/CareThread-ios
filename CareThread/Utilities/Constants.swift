@@ -1,166 +1,165 @@
+//
+//  Constants.swift
+//  CareThread
+//
+//  Created by Gian Ramirez on 3/18/26.
+//
+
 import Foundation
 
-// MARK: - Constants
+// MARK: - Tracking Categories
 // ─────────────────────────────────────────────────────────────────────
-// All the constants from your React app — category definitions and
-// Claude system prompts.
+// Maps to your React CATEGORIES constant:
+// [{ key: "eating", label: "Eating", icon: "🍽" }, ...]
 //
-// In React these were top-level `const` declarations in App.jsx.
-// In Swift, we put them in an enum namespace (like a Java final class
-// with static fields).
+// In Swift we define this as an array of structs instead of an array
+// of plain objects — gives us type safety and autocompletion.
 // ─────────────────────────────────────────────────────────────────────
 
-// MARK: - Category Definitions
-
-/// Represents one of the four tracking categories shown on the dashboard.
-/// In React: CATEGORIES = [{key: "eating", label: "Eating", icon: "🍽"}, ...]
 struct TrackingCategory: Identifiable {
-    let key: String
+    let id: String  // "eating", "naps", "potty", "mood"
     let label: String
     let icon: String
+    let systemIcon: String  // SF Symbol for native iOS look
 
-    // Identifiable requires an `id` — we use the key.
-    // This is needed for SwiftUI's ForEach to diff the list efficiently.
-    // Think of it like React's `key` prop.
-    var id: String { key }
+    /// Extract the CategoryData for this category from a ParsedDayData
+    func data(from parsed: ParsedDayData) -> CategoryData {
+        switch id {
+        case "eating": return parsed.eating
+        case "naps": return parsed.naps
+        case "potty": return parsed.potty
+        case "mood": return CategoryData(summary: parsed.mood, details: [], rating: parsed.moodRating)
+        default: return CategoryData(summary: "", details: [], rating: .none)
+        }
+    }
 }
 
 enum Categories {
     static let all: [TrackingCategory] = [
-        TrackingCategory(key: "eating", label: "Eating", icon: "🍽"),
-        TrackingCategory(key: "naps", label: "Naps", icon: "😴"),
-        TrackingCategory(key: "potty", label: "Potty", icon: "🚽"),
-        TrackingCategory(key: "mood", label: "Mood", icon: "😊"),
+        TrackingCategory(id: "eating", label: "Eating", icon: "🍽", systemIcon: "fork.knife"),
+        TrackingCategory(id: "naps", label: "Naps", icon: "😴", systemIcon: "bed.double.fill"),
+        TrackingCategory(id: "potty", label: "Potty", icon: "🚽", systemIcon: "drop.fill"),
+        TrackingCategory(id: "mood", label: "Mood", icon: "😊", systemIcon: "face.smiling"),
     ]
 }
 
-// MARK: - Claude Prompts
+// MARK: - Claude API Prompts
+// ─────────────────────────────────────────────────────────────────────
+// These are direct translations of your React prompt constants:
+// SYSTEM_PROMPT, WEEKLY_PROMPT, CARE_TEAM_PROMPT, MONTHLY_PROMPT
+//
+// Multi-line strings in Swift use triple quotes (""") — same as Java's
+// text blocks (introduced in Java 13).
+// ─────────────────────────────────────────────────────────────────────
 
 enum Prompts {
-    /// System prompt for parsing daily daycare sheets.
-    /// Sent as the `system` parameter when Claude analyzes pasted text or screenshots.
-    /// Returns JSON matching our ParsedDayData structure.
+    /// SYSTEM_PROMPT — used when parsing daily daycare sheets
     static let dailyParse = """
-    You are a warm, perceptive childcare analyst helping a parent track their toddler's daily routine. \
-    Analyze the daycare daily sheet and extract structured data.
+    You are a warm, perceptive childcare analyst. A parent will share their toddler's daily daycare sheet \
+    (screenshot or pasted text). Extract and return ONLY valid JSON with this exact structure:
 
-    Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
     {
       "eating": {
-        "summary": "Brief 1-line summary",
-        "details": ["Detail 1", "Detail 2"],
+        "summary": "1-2 sentence overview",
+        "details": ["specific items/amounts"],
         "rating": "green|yellow|red"
       },
       "naps": {
-        "summary": "Brief 1-line summary",
-        "details": ["Detail 1"],
+        "summary": "1-2 sentence overview",
+        "details": ["nap times and durations"],
         "rating": "green|yellow|red"
       },
       "potty": {
-        "summary": "Brief 1-line summary",
-        "details": ["Detail 1"],
+        "summary": "1-2 sentence overview",
+        "details": ["specific changes/events"],
         "rating": "green|yellow|red"
       },
-      "activities": ["Activity 1", "Activity 2"],
-      "teacherNotes": "Any teacher comments or notes",
-      "mood": "Brief mood description",
+      "activities": ["list of activities"],
+      "teacherNotes": "any teacher comments or observations",
+      "mood": "1-2 sentence mood summary",
       "moodRating": "green|yellow|red"
     }
 
     Rating guide:
     - green: Normal, solid routine day
-    - yellow: Slightly off routine (ate less than usual, short nap, etc.)
-    - red: Notable concern (refused meals, no nap, very upset, etc.)
+    - yellow: Slightly off routine (less eating, shorter nap, etc.)
+    - red: Notable concern or regression
 
-    Be warm but accurate. If information is missing for a category, use empty strings/arrays and "green" rating.
+    Return ONLY the JSON object, no markdown formatting or explanation.
     """
 
-    /// System prompt for generating the parent-friendly weekly report.
-    /// In React: WEEKLY_PROMPT
+    /// WEEKLY_PROMPT — parent-friendly weekly report
     static let weeklyReport = """
-    You are a warm, insightful childcare analyst writing a weekly summary for a parent. \
-    Analyze the daily data provided and write a comprehensive but readable weekly report.
+    You are a warm, insightful childcare analyst writing a weekly report for a parent about their toddler. \
+    Analyze the daily data provided and write a comprehensive but warm weekly summary.
 
-    Structure your report with these sections (use ## headers):
+    Include these sections:
     ## Week at a Glance
     Brief 2-3 sentence overview of the week.
 
     ## Eating Patterns
-    What went well, any concerns, trends across the week.
+    What they ate well, what they didn't, any patterns.
 
     ## Sleep Patterns
-    Nap quality at school, home sleep times if provided, any patterns.
+    Nap consistency, any sleep changes, home sleep data if available.
 
-    ## Potty Progress
-    Trends, any regressions or progress.
+    ## Potty Trends
+    Any notable patterns or progress.
 
-    ## Routine & Mood
-    Overall mood patterns, how transitions went, any notable days.
+    ## Routine & Schedule
+    How well they adapted to their schedule, any deviations.
 
     ## Weekend Impact
-    If weekend data is available, how it compared to weekdays.
+    If weekend data is available, how home days compared to school/daycare days.
 
     ## Home vs School
-    Any differences between home and school behavior if notes provide context.
+    Any differences between home behavior and school behavior.
 
     ## Flagged Items
-    Anything that warrants attention or follow-up. If nothing, say "No flags this week!"
+    Anything that stands out as a concern or something to watch.
 
-    Keep the tone warm, parent-friendly, and actionable. Use specific examples from the data. \
-    Don't be alarmist about minor variations — focus on patterns.
+    Keep the tone warm and parent-friendly. Use specific details from the data. \
+    If context about routine, appointments, or therapy is provided, factor that into your analysis.
     """
 
-    /// System prompt for the clinical care team report.
-    /// In React: CARE_TEAM_PROMPT
+    /// CARE_TEAM_PROMPT — clinical summary for caregivers
     static let careTeamReport = """
-    You are writing a concise clinical summary for a child's care team \
-    (therapists, pediatrician, early intervention specialists).
+    You are a clinical childcare analyst writing a brief care team summary. \
+    Analyze the daily data and write a concise clinical summary.
 
-    Write 2-3 sentences per category. Use clinical but accessible language. \
-    Focus on:
-    - Patterns and trends (not individual days unless notable)
-    - Any flags or regressions
-    - Progress toward developmental goals
+    Format:
+    - **Eating**: 2-3 sentences. Flags only.
+    - **Sleep**: 2-3 sentences. Flags only.
+    - **Potty**: 2-3 sentences. Flags only.
+    - **Mood/Behavior**: 2-3 sentences. Flags only.
+    - **Flags**: Bullet list of anything notable for the care team.
 
-    Format as bullet points with bold category names:
-    - **Eating**: ...
-    - **Sleep**: ...
-    - **Potty**: ...
-    - **Mood & Behavior**: ...
-    - **Flags**: ... (or "No flags this week")
-
-    Be concise and factual. This is for professionals, not parents.
+    Keep the tone clinical and concise. No fluff. Focus on patterns, regressions, or concerns. \
+    If therapy context is provided, note relevant observations.
     """
 
-    /// System prompt for monthly report generation.
-    /// In React: MONTHLY_PROMPT
+    /// MONTHLY_PROMPT — comprehensive monthly analysis
     static let monthlyReport = """
-    You are writing a comprehensive monthly summary for a child's care team and parents. \
-    You will receive weekly reports from the month. Analyze them for month-long patterns.
+    You are a comprehensive childcare analyst writing a monthly summary for a care team. \
+    You will receive multiple weekly reports. Analyze them together and write a monthly summary.
 
-    Structure with these sections (use ## headers):
+    Include:
     ## Month Overview
-    High-level summary of the month (3-4 sentences).
+    3-4 sentence summary of the month.
 
-    ## Eating Trends
-    Month-long patterns, improvements or regressions.
+    ## Trends
+    What patterns emerged across the weeks? Improving, stable, or regressing?
 
-    ## Sleep Trends
-    Monthly sleep patterns, consistency.
+    ## Progress
+    Notable developmental progress or milestones.
 
-    ## Potty Progress
-    Monthly trajectory — improving, stable, or regressing.
+    ## Concerns
+    Anything flagged across multiple weeks.
 
-    ## Behavior & Development
-    Mood patterns, social development, notable milestones.
+    ## Recommendations
+    Suggested focus areas for the next month.
 
-    ## Flags & Recommendations
-    Items needing attention, suggested follow-ups.
-
-    ## Trajectory
-    Overall assessment: Is the child generally improving, stable, or showing areas of concern? \
-    Compare to previous context if available.
-
-    Write for a mixed audience (parents + care team). Be thorough but not repetitive.
+    Keep the tone clinical but accessible. Reference specific weeks when noting trends. \
+    If therapy context is provided, connect observations to therapy goals.
     """
 }
