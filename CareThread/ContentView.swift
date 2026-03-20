@@ -26,6 +26,7 @@ import SwiftData
 // ─────────────────────────────────────────────────────────────────────
 
 struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query private var allSettings: [AppSettings]
     @State private var isUnlocked = false
 
@@ -47,6 +48,11 @@ struct ContentView: View {
                 if let pin = allSettings.first?.pinCode {
                     PinLockView(correctPin: pin, isUnlocked: $isUnlocked)
                 }
+            }
+            .onAppear {
+                #if DEBUG
+                SampleData.seedIfEmpty(context: modelContext)
+                #endif
             }
     }
 }
