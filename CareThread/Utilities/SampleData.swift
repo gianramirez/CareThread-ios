@@ -103,6 +103,16 @@ enum SampleData {
         return week
     }
 
+    /// Seed the database with sample data if empty (DEBUG builds only).
+    /// Safe to call on every launch — skips if any WeekEntry already exists.
+    @MainActor
+    static func seedIfEmpty(context: ModelContext) {
+        let descriptor = FetchDescriptor<WeekEntry>()
+        let count = (try? context.fetchCount(descriptor)) ?? 0
+        guard count == 0 else { return }
+        context.insert(sampleWeek())
+    }
+
     /// A preview-ready model container with sample data pre-inserted
     @MainActor
     static var previewContainer: ModelContainer {
