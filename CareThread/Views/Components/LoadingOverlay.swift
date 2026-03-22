@@ -7,9 +7,6 @@
 
 import SwiftUI
 
-// MARK: - LoadingOverlay
-// Shown over the entire app when Claude API is processing.
-
 struct LoadingOverlay: View {
     let message: String
 
@@ -35,9 +32,6 @@ struct LoadingOverlay: View {
         .animation(.easeInOut(duration: 0.2), value: true)
     }
 }
-
-// MARK: - Toast Modifier
-// Maps to your React toast notification system.
 
 struct ToastModifier: ViewModifier {
     @Binding var message: String?

@@ -7,35 +7,14 @@
 
 import SwiftUI
 
-// MARK: - Theme
-// ─────────────────────────────────────────────────────────────────────
-// Translates your React T(dark) theme function to SwiftUI.
-//
-// In React, you built a theme object with hex color strings and applied
-// them inline via `style={{}}`. SwiftUI handles this differently:
-//
-// 1. SwiftUI has built-in semantic colors (Color.primary, .secondary)
-//    that automatically adapt to light/dark mode — no manual switching!
-//
-// 2. For custom colors, we define them here and SwiftUI's Environment
-//    handles the light/dark toggling automatically.
-//
-// Think of SwiftUI's @Environment(\.colorScheme) as React's
-// useMediaQuery('(prefers-color-scheme: dark)') — but built into the
-// framework instead of being a manual hook.
-// ─────────────────────────────────────────────────────────────────────
-
 enum AppTheme {
-    // MARK: - Brand Colors (match your React accent palette)
-    static let accent = Color.blue  // Maps to your #2563eb / #60a5fa
+    static let accent = Color.blue
     static let accentSoft = Color.blue.opacity(0.15)
 
-    // MARK: - Status Colors (same across light/dark)
-    static let green = Color(red: 0.133, green: 0.773, blue: 0.369)   // #22c55e
-    static let yellow = Color(red: 0.918, green: 0.702, blue: 0.031)  // #eab308
-    static let red = Color(red: 0.937, green: 0.267, blue: 0.267)     // #ef4444
+    static let green = Color(red: 0.133, green: 0.773, blue: 0.369)
+    static let yellow = Color(red: 0.918, green: 0.702, blue: 0.031)
+    static let red = Color(red: 0.937, green: 0.267, blue: 0.267)
 
-    /// Get the Color for a StatusRating — used by StatusDot and StatusLabel.
     static func color(for rating: StatusRating) -> Color {
         switch rating {
         case .green: return green
@@ -45,15 +24,12 @@ enum AppTheme {
         }
     }
 
-    // MARK: - Semantic Colors
     static let cardBackground = Color(.secondarySystemBackground)
     static let inputBackground = Color(.tertiarySystemBackground)
     static let border = Color(.separator)
     static let textMuted = Color(.tertiaryLabel)
     static let textSoft = Color(.secondaryLabel)
 }
-
-// MARK: - View Modifiers
 
 struct CardModifier: ViewModifier {
     func body(content: Content) -> some View {

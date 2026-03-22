@@ -8,10 +8,6 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - DashboardView
-// Maps to your React Dashboard tab — the main week overview with
-// category cards, status dot grids, and daily breakdown.
-
 struct DashboardView: View {
     @Binding var currentMonday: Date
     @Binding var selectedTab: AppTab
@@ -38,21 +34,13 @@ struct DashboardView: View {
         allSettings.first
     }
 
-    // MARK: - Body
-
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                // Progress bar
                 progressSection
-
-                // Category cards grid (2x2)
                 categoryCardsGrid
-
-                // Daily breakdown list
                 dailyBreakdownList
 
-                // Generate report button
                 if (currentWeek?.filledDayCount ?? 0) > 0 {
                     generateReportButton
                 }
@@ -107,7 +95,6 @@ struct DashboardView: View {
 
     private func categoryCard(_ category: TrackingCategory) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Header
             HStack {
                 Text(category.icon)
                 Text(category.label)
@@ -116,7 +103,6 @@ struct DashboardView: View {
                 StatusLabel(rating: weekCategoryRating(category.id))
             }
 
-            // Daily status dots (M T W T F S S)
             HStack(spacing: 4) {
                 ForEach(0..<7, id: \.self) { dayIndex in
                     let dayName = DateHelpers.dayNames[dayIndex]
@@ -134,15 +120,12 @@ struct DashboardView: View {
         .cardStyle()
     }
 
-    /// Get the rating for a specific category on a specific day
     private func dayRating(for categoryId: String, day: String) -> StatusRating {
         guard let parsed = currentWeek?.parsedEntries[day] else { return .none }
         let category = Categories.all.first { $0.id == categoryId }
         return category?.data(from: parsed).rating ?? .none
     }
 
-    /// Aggregate daily ratings into a week rating
-    /// Maps to your React weekCatRating(key)
     private func weekCategoryRating(_ categoryId: String) -> StatusRating {
         let ratings = DateHelpers.dayNames.map { dayRating(for: categoryId, day: $0) }
             .filter { $0 != .none }
@@ -170,7 +153,6 @@ struct DashboardView: View {
                     selectedTab = .logDay
                 } label: {
                     HStack(spacing: 12) {
-                        // Day label
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
                                 Text(dayName)
@@ -187,7 +169,6 @@ struct DashboardView: View {
                                 }
                             }
 
-                            // Routine + appointments
                             if let label = scheduleLabel(for: dayName) {
                                 Text(label)
                                     .font(.caption)
@@ -197,7 +178,6 @@ struct DashboardView: View {
 
                         Spacer()
 
-                        // Status dots for each category
                         if hasData {
                             HStack(spacing: 6) {
                                 ForEach(Categories.all) { cat in
@@ -219,7 +199,6 @@ struct DashboardView: View {
         .cardStyle()
     }
 
-    /// Get schedule label for a day — maps to your React schedLabel()
     private func scheduleLabel(for day: String) -> String? {
         var parts: [String] = []
         if let location = settings?.routine[day], !location.isEmpty {
@@ -231,7 +210,7 @@ struct DashboardView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    // MARK: - Generate Report Button
+    // MARK: - Generate Report
 
     private var generateReportButton: some View {
         Button {
@@ -249,11 +228,9 @@ struct DashboardView: View {
         .disabled(apiService.isLoading)
     }
 
-    /// Maps to your React generateReport() function
     private func generateReport() async {
         guard let week = currentWeek else { return }
 
-        // Build the daily data string (same format as your React app)
         var weekData = ""
         for dayIndex in 0..<7 {
             let dayName = DateHelpers.dayNames[dayIndex]
@@ -286,7 +263,6 @@ struct DashboardView: View {
             weekData += "\n"
         }
 
-        // Build context strings
         var routineContext = ""
         if let s = settings {
             for day in DateHelpers.weekdayNames {
@@ -315,7 +291,6 @@ struct DashboardView: View {
         } catch {
             toastIsError = true
             toastMessage = "Couldn't generate reports."
-            print("Report error: \(error)")
         }
     }
 }

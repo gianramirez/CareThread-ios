@@ -8,9 +8,6 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - ReportView
-// Maps to your React Report tab with "Full Report" | "Care Team" toggle.
-
 struct ReportView: View {
     @Binding var currentMonday: Date
 
@@ -37,7 +34,6 @@ struct ReportView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Report type toggle
             Picker("Report Type", selection: $reportType) {
                 ForEach(ReportType.allCases, id: \.self) { type in
                     Text(type.rawValue).tag(type)
@@ -47,12 +43,9 @@ struct ReportView: View {
             .padding()
 
             if let report = currentReport, !report.isEmpty {
-                // Report content
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        // Action buttons
                         HStack(spacing: 12) {
-                            // Native Share Sheet — your "Native Enhancement" requirement
                             ShareLink(item: report) {
                                 Label("Share", systemImage: "square.and.arrow.up")
                                     .font(.subheadline)
@@ -73,7 +66,6 @@ struct ReportView: View {
 
                         Divider()
 
-                        // Report text — rendered as Markdown
                         Text(LocalizedStringKey(report))
                             .font(.subheadline)
                             .textSelection(.enabled)
@@ -81,7 +73,6 @@ struct ReportView: View {
                     .padding()
                 }
             } else {
-                // Empty state
                 VStack(spacing: 16) {
                     Spacer()
                     Image(systemName: "doc.text")

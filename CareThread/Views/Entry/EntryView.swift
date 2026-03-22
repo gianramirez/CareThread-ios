@@ -15,9 +15,6 @@ import AppKit
 typealias UIImage = NSImage
 #endif
 
-// MARK: - EntryView (Log Day)
-// Maps to your React "Log Day" tab — the entry form for daily data.
-
 struct EntryView: View {
     @Binding var currentMonday: Date
     @Binding var activeDay: Int
@@ -366,7 +363,6 @@ struct EntryView: View {
             toastIsError = false; toastMessage = "\(dayName) logged!"
         } catch {
             toastIsError = true; toastMessage = "Couldn't parse that — try again."
-            print("Parse error: \(error)")
         }
     }
 
@@ -410,7 +406,6 @@ struct EntryView: View {
             toastIsError = false; toastMessage = "Morning info saved & summary refreshed!"
         } catch {
             toastIsError = false; toastMessage = "Morning info saved!"
-            print("Reparse error: \(error)")
         }
     }
 

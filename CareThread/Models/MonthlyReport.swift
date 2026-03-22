@@ -11,7 +11,7 @@ import SwiftData
 @Model
 final class MonthlyReport {
     @Attribute(.unique)
-    var monthId: String  // Format: "YYYY-MM"
+    var monthId: String
 
     var report: String
     var createdAt: Date

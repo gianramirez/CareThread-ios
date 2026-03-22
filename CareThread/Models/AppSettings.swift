@@ -11,20 +11,12 @@ import SwiftData
 @Model
 final class AppSettings {
     @Attribute(.unique)
-    var settingsId: String  // Always "global"
+    var settingsId: String
 
-    // Daily routine — maps to your React { Monday: "School", Tuesday: "Daycare", ... }
     var routine: [String: String]
-
-    // Daily appointments — { Monday: "OT 10am", Wednesday: "Speech 2pm" }
     var appointments: [String: String]
-
-    // Free-text therapy schedule
     var therapySchedule: String
-
-    // PIN lock code (4-8 digits)
-    var pinCode: String
-
+    var isLockEnabled: Bool
     var updatedAt: Date
 
     init() {
@@ -32,7 +24,7 @@ final class AppSettings {
         self.routine = [:]
         self.appointments = [:]
         self.therapySchedule = ""
-        self.pinCode = ""
+        self.isLockEnabled = false
         self.updatedAt = Date()
     }
 }

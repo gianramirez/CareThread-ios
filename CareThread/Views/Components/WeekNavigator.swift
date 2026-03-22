@@ -7,9 +7,6 @@
 
 import SwiftUI
 
-// MARK: - WeekNavigator
-// Maps to your React header with < Week of Jan 15, 2026 > navigation.
-
 struct WeekNavigator: View {
     @Binding var currentMonday: Date
     @State private var showCalendar = false

@@ -7,9 +7,6 @@
 
 import SwiftUI
 
-// MARK: - StatusDot
-// Maps to your React StatusDot({ rating, size, t }) component.
-
 struct StatusDot: View {
     let rating: StatusRating
     var size: CGFloat = 10
@@ -20,9 +17,6 @@ struct StatusDot: View {
             .frame(width: size, height: size)
     }
 }
-
-// MARK: - StatusLabel
-// Maps to your React StatusLabel({ rating, t }) component.
 
 struct StatusLabel: View {
     let rating: StatusRating

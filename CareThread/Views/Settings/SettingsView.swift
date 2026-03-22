@@ -7,9 +7,7 @@
 
 import SwiftUI
 import SwiftData
-
-// MARK: - SettingsView
-// Maps to your React Settings tab with routine, appointments, therapy, PIN.
+import LocalAuthentication
 
 struct SettingsView: View {
     @Binding var currentMonday: Date
@@ -22,7 +20,6 @@ struct SettingsView: View {
     @State private var toastMessage: String?
     @State private var toastIsError = false
     @State private var showClearConfirm = false
-    @State private var newPin = ""
 
     @State private var editedRoutine: [String: String] = [:]
     @State private var editedAppointments: [String: String] = [:]
@@ -65,20 +62,15 @@ struct SettingsView: View {
             }
 
             Section {
-                HStack {
-                    SecureField("New PIN (4-8 digits)", text: $newPin)
-                        .keyboardType(.numberPad)
-                        .textFieldStyle(.roundedBorder)
-
-                    Button("Update") { updatePin() }
-                        .disabled(newPin.count < 4 || newPin.count > 8)
+                Toggle(isOn: lockEnabledBinding) {
+                    Label(biometricLabel, systemImage: biometricIcon)
                 }
             } header: {
-                Text("PIN Lock")
+                Text("App Lock")
             } footer: {
-                Text(settings?.pinCode.isEmpty ?? true
-                    ? "No PIN set. Anyone can open the app."
-                    : "PIN is set. Change it or leave blank to remove.")
+                Text(settings?.isLockEnabled ?? false
+                    ? "\(biometricLabel) is required to open the app."
+                    : "Enable to require \(biometricLabel) when opening CareThread.")
             }
 
             Section {
@@ -94,7 +86,7 @@ struct SettingsView: View {
                     Label("Clear This Week", systemImage: "trash")
                 }
 
-                if !(settings?.pinCode.isEmpty ?? true) {
+                if settings?.isLockEnabled ?? false {
                     Button {
                         isUnlocked = false
                     } label: {
@@ -144,12 +136,43 @@ struct SettingsView: View {
         toastIsError = false; toastMessage = "Settings saved!"
     }
 
-    private func updatePin() {
-        let s = getOrCreateSettings()
-        s.pinCode = newPin
-        s.updatedAt = Date()
-        newPin = ""
-        toastIsError = false; toastMessage = "PIN updated!"
+    // MARK: - Biometric Helpers
+
+    private var biometricType: LABiometryType {
+        let context = LAContext()
+        _ = context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
+        return context.biometryType
+    }
+
+    private var biometricLabel: String {
+        switch biometricType {
+        case .faceID: return "Face ID"
+        case .touchID: return "Touch ID"
+        case .opticID: return "Optic ID"
+        @unknown default: return "Device Lock"
+        }
+    }
+
+    private var biometricIcon: String {
+        switch biometricType {
+        case .faceID: return "faceid"
+        case .touchID: return "touchid"
+        case .opticID: return "opticid"
+        @unknown default: return "lock.shield.fill"
+        }
+    }
+
+    private var lockEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { settings?.isLockEnabled ?? false },
+            set: { newValue in
+                let s = getOrCreateSettings()
+                s.isLockEnabled = newValue
+                s.updatedAt = Date()
+                toastIsError = false
+                toastMessage = newValue ? "\(biometricLabel) lock enabled" : "App lock disabled"
+            }
+        )
     }
 
     private func clearWeek() {

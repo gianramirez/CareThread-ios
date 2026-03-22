@@ -14,10 +14,6 @@ import AppKit
 typealias UIImage = NSImage
 #endif
 
-// MARK: - ClaudeAPIService
-
-
-/// Errors that can occur during API calls
 enum ClaudeAPIError: LocalizedError {
     case invalidURL
     case networkError(Error)
@@ -51,8 +47,6 @@ struct ContentBlock: Codable, Sendable {
     let type: String
     let text: String?
 }
-
-// MARK: - Message Types
 
 struct ClaudeMessage: Codable, Sendable {
     let role: String
@@ -101,15 +95,8 @@ struct ImageSource: Codable, Sendable {
     }
 }
 
-// MARK: - The Service
+// MARK: - ClaudeAPIService
 
-/// Using @Observable (Swift 5.9+ / Observation framework) instead of
-/// ObservableObject + @Published. This is the modern approach and works
-/// cleanly with Swift 6 strict concurrency.
-///
-/// In React terms: @Observable makes every property automatically
-/// trigger re-renders, like if every field had useState() built in.
-/// No need for @Published wrappers.
 @Observable
 class ClaudeAPIService {
     private var baseURL: String
@@ -119,8 +106,6 @@ class ClaudeAPIService {
 
     var isLoading = false
     var loadingMessage = ""
-
-    // MARK: - Initialization
 
     init() {
         self.baseURL = AppConfig.apiBaseURL
@@ -182,9 +167,6 @@ class ClaudeAPIService {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            if let errorText = String(data: data, encoding: .utf8) {
-                print("API Error (\(httpResponse.statusCode)): \(errorText)")
-            }
             throw ClaudeAPIError.invalidResponse(statusCode: httpResponse.statusCode)
         }
 
@@ -310,7 +292,6 @@ class ClaudeAPIService {
 
     // MARK: - Private Helpers
 
-    /// Returns (URL?, headers) — no longer throws, just returns nil URL on bad input
     private func buildRequest() -> (URL?, [String: String]) {
         if let apiKey = debugAPIKey, !apiKey.isEmpty {
             let url = URL(string: "https://api.anthropic.com/v1/messages")
@@ -355,10 +336,6 @@ class ClaudeAPIService {
 
 // MARK: - App Configuration
 
-/// Marked nonisolated(unsafe) so these static values can be read
-/// from the MainActor-isolated init without complaints.
-/// These are effectively constants (apiBaseURL is a let, debugAPIKey
-/// reads an immutable environment variable).
 nonisolated enum AppConfig {
     static let apiBaseURL = "https://your-proxy.workers.dev/api/claude"
 

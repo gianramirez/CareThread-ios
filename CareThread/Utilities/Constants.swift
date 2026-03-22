@@ -7,22 +7,12 @@
 
 import Foundation
 
-// MARK: - Tracking Categories
-// ─────────────────────────────────────────────────────────────────────
-// Maps to your React CATEGORIES constant:
-// [{ key: "eating", label: "Eating", icon: "🍽" }, ...]
-//
-// In Swift we define this as an array of structs instead of an array
-// of plain objects — gives us type safety and autocompletion.
-// ─────────────────────────────────────────────────────────────────────
-
 struct TrackingCategory: Identifiable {
-    let id: String  // "eating", "naps", "potty", "mood"
+    let id: String
     let label: String
     let icon: String
-    let systemIcon: String  // SF Symbol for native iOS look
+    let systemIcon: String
 
-    /// Extract the CategoryData for this category from a ParsedDayData
     func data(from parsed: ParsedDayData) -> CategoryData {
         switch id {
         case "eating": return parsed.eating
@@ -44,16 +34,8 @@ enum Categories {
 }
 
 // MARK: - Claude API Prompts
-// ─────────────────────────────────────────────────────────────────────
-// These are direct translations of your React prompt constants:
-// SYSTEM_PROMPT, WEEKLY_PROMPT, CARE_TEAM_PROMPT, MONTHLY_PROMPT
-//
-// Multi-line strings in Swift use triple quotes (""") — same as Java's
-// text blocks (introduced in Java 13).
-// ─────────────────────────────────────────────────────────────────────
 
 enum Prompts {
-    /// SYSTEM_PROMPT — used when parsing daily daycare sheets
     static let dailyParse = """
     You are a warm, perceptive childcare analyst. A parent will share their toddler's daily daycare sheet \
     (screenshot or pasted text). Extract and return ONLY valid JSON with this exact structure:
@@ -93,7 +75,6 @@ enum Prompts {
     Return ONLY the JSON object, no markdown formatting or explanation.
     """
 
-    /// WEEKLY_PROMPT — parent-friendly weekly report
     static let weeklyReport = """
     You are a warm, insightful childcare analyst writing a weekly report for a parent about their toddler. \
     Analyze the daily data provided and write a comprehensive but warm weekly summary.
@@ -127,7 +108,6 @@ enum Prompts {
     If context about routine, appointments, or therapy is provided, factor that into your analysis.
     """
 
-    /// CARE_TEAM_PROMPT — clinical summary for caregivers
     static let careTeamReport = """
     You are a clinical childcare analyst writing a brief care team summary. \
     Analyze the daily data and write a concise clinical summary.
@@ -143,7 +123,6 @@ enum Prompts {
     If therapy context is provided, note relevant observations.
     """
 
-    /// MONTHLY_PROMPT — comprehensive monthly analysis
     static let monthlyReport = """
     You are a comprehensive childcare analyst writing a monthly summary for a care team. \
     You will receive multiple weekly reports. Analyze them together and write a monthly summary.

@@ -16,17 +16,12 @@ class NotificationService {
 
     func requestPermission() async -> Bool {
         do {
-            let granted = try await center.requestAuthorization(
-                options: [.alert, .sound, .badge]
-            )
-            return granted
+            return try await center.requestAuthorization(options: [.alert, .sound, .badge])
         } catch {
-            print("Notification permission error: \(error)")
             return false
         }
     }
 
-    /// Schedule a daily reminder at 6 PM on weekdays (Mon-Fri)
     func scheduleEveningReminder(hour: Int = 18, minute: Int = 0) {
         cancelEveningReminder()
 
@@ -52,11 +47,7 @@ class NotificationService {
                 trigger: trigger
             )
 
-            center.add(request) { error in
-                if let error {
-                    print("Failed to schedule notification: \(error)")
-                }
-            }
+            center.add(request)
         }
     }
 

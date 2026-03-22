@@ -8,9 +8,6 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - MonthlyReportView
-// Maps to your React Monthly tab.
-
 struct MonthlyReportView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(ClaudeAPIService.self) var apiService
@@ -141,7 +138,6 @@ struct MonthlyReportView: View {
             toastIsError = false; toastMessage = "Monthly report generated!"
         } catch {
             toastIsError = true; toastMessage = "Couldn't generate monthly report."
-            print("Monthly report error: \(error)")
         }
     }
 }

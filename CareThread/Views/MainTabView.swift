@@ -7,8 +7,6 @@
 
 import SwiftUI
 
-// MARK: - AppTab Enum
-
 enum AppTab: String, CaseIterable {
     case dashboard = "Dashboard"
     case logDay = "Log Day"
@@ -26,8 +24,6 @@ enum AppTab: String, CaseIterable {
         }
     }
 }
-
-// MARK: - MainTabView
 
 struct MainTabView: View {
     @State private var currentMonday = DateHelpers.mondayOfWeek(containing: Date())

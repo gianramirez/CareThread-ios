@@ -1,96 +1,119 @@
 //
-//  PinLockView.swift
+//  BiometricLockView.swift
 //  CareThread
 //
 //  Created by Gian Ramirez on 3/18/26.
 //
 
 import SwiftUI
+import LocalAuthentication
 
-// MARK: - PinLockView
-// Maps to your React PinScreen component.
-
-struct PinLockView: View {
-    let correctPin: String
+struct BiometricLockView: View {
     @Binding var isUnlocked: Bool
 
-    @State private var enteredPin = ""
-    @State private var showError = false
-    @FocusState private var isFocused: Bool
+    @State private var authError: String?
+
+    private var biometricType: LABiometryType {
+        let context = LAContext()
+        _ = context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
+        return context.biometryType
+    }
+
+    private var biometricLabel: String {
+        switch biometricType {
+        case .faceID: return "Face ID"
+        case .touchID: return "Touch ID"
+        case .opticID: return "Optic ID"
+        @unknown default: return "Biometrics"
+        }
+    }
+
+    private var biometricIcon: String {
+        switch biometricType {
+        case .faceID: return "faceid"
+        case .touchID: return "touchid"
+        case .opticID: return "opticid"
+        @unknown default: return "lock.shield.fill"
+        }
+    }
 
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
 
-            Image(systemName: "lock.shield.fill")
+            Image(systemName: biometricIcon)
                 .font(.system(size: 60))
                 .foregroundStyle(AppTheme.accent)
+                .symbolEffect(.pulse, options: .repeating)
 
             Text("CareThread")
                 .font(.title.weight(.bold))
 
-            Text("Enter your PIN to unlock")
+            Text("Unlock with \(biometricLabel)")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            SecureField("PIN", text: $enteredPin)
-                .keyboardType(.numberPad)
-                .textContentType(.password)
-                .multilineTextAlignment(.center)
-                .font(.title2.monospaced())
-                .padding()
-                .background(AppTheme.inputBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .frame(maxWidth: 200)
-                .focused($isFocused)
-                .onSubmit { checkPin() }
-                .onChange(of: enteredPin) { _, newValue in
-                    if newValue.count >= correctPin.count {
-                        checkPin()
-                    }
-                }
-
-            if showError {
-                Text("Incorrect PIN")
+            if let error = authError {
+                Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
                     .transition(.opacity)
             }
 
             Button {
-                checkPin()
+                authenticate()
             } label: {
-                Text("Unlock")
+                Label("Unlock", systemImage: biometricIcon)
                     .font(.headline)
                     .frame(maxWidth: 200)
                     .padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(enteredPin.isEmpty)
 
             Spacer()
             Spacer()
         }
         .padding()
-        .onAppear { isFocused = true }
+        .onAppear {
+            authenticate()
+        }
     }
 
-    private func checkPin() {
-        if enteredPin == correctPin {
-            withAnimation { isUnlocked = true }
+    private func authenticate() {
+        let context = LAContext()
+        context.localizedCancelTitle = "Cancel"
+        var error: NSError?
+
+        if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
+            context.evaluatePolicy(
+                .deviceOwnerAuthentication,
+                localizedReason: "Unlock CareThread to access your child's data"
+            ) { success, authenticationError in
+                if success {
+                    withAnimation { isUnlocked = true }
+                } else {
+                    if let laError = authenticationError as? LAError {
+                        switch laError.code {
+                        case .userCancel, .appCancel, .systemCancel:
+                            break
+                        case .biometryNotEnrolled:
+                            authError = "No biometrics enrolled. Please set up \(biometricLabel) in Settings."
+                        case .biometryLockout:
+                            authError = "Too many failed attempts. Try again later."
+                        default:
+                            authError = "Authentication failed. Tap Unlock to try again."
+                        }
+                    }
+                }
+            }
         } else {
-            withAnimation {
-                showError = true
-                enteredPin = ""
-            }
-            Task {
-                try? await Task.sleep(for: .seconds(2))
-                withAnimation { showError = false }
-            }
+            withAnimation { isUnlocked = true }
         }
     }
 }
 
 #Preview {
-    PinLockView(correctPin: "1234", isUnlocked: .constant(false))
+    BiometricLockView(isUnlocked: .constant(false))
 }
