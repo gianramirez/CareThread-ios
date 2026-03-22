@@ -441,40 +441,45 @@ struct EntryView: View {
     }
 
     // MARK: - Auto-Save Logic
+    // Each section gets its own debounce timer so they don't cancel each other.
+    // Auto-saves are silent — no toast. Only explicit actions (Log This Day) show toasts.
 
-    @State private var saveTask: Task<Void, Never>?
+    @State private var notesSaveTask: Task<Void, Never>?
+    @State private var sleepSaveTask: Task<Void, Never>?
+    @State private var healthSaveTask: Task<Void, Never>?
+    @State private var therapySaveTask: Task<Void, Never>?
 
     private func debounceAutoSaveNotes() {
-        saveTask?.cancel()
-        saveTask = Task {
-            try? await Task.sleep(for: .seconds(1))
+        notesSaveTask?.cancel()
+        notesSaveTask = Task {
+            try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             autoSaveNotes()
         }
     }
 
     private func debounceAutoSaveSleep() {
-        saveTask?.cancel()
-        saveTask = Task {
-            try? await Task.sleep(for: .seconds(1))
+        sleepSaveTask?.cancel()
+        sleepSaveTask = Task {
+            try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             autoSaveSleep()
         }
     }
 
     private func debounceAutoSaveHealth() {
-        saveTask?.cancel()
-        saveTask = Task {
-            try? await Task.sleep(for: .seconds(1))
+        healthSaveTask?.cancel()
+        healthSaveTask = Task {
+            try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             autoSaveHealth()
         }
     }
 
     private func debounceAutoSaveTherapy() {
-        saveTask?.cancel()
-        saveTask = Task {
-            try? await Task.sleep(for: .seconds(1))
+        therapySaveTask?.cancel()
+        therapySaveTask = Task {
+            try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             autoSaveTherapy()
         }
@@ -482,18 +487,13 @@ struct EntryView: View {
 
     private func autoSaveNotes() {
         let week = getOrCreateWeek()
-        var changed = false
         if morningNote != (week.morningNotes[dayName] ?? "") {
             week.morningNotes[dayName] = morningNote.isEmpty ? nil : morningNote
-            changed = true
+            week.updatedAt = Date()
         }
         if eveningNote != (week.eveningNotes[dayName] ?? "") {
             week.eveningNotes[dayName] = eveningNote.isEmpty ? nil : eveningNote
-            changed = true
-        }
-        if changed {
             week.updatedAt = Date()
-            showSavedToast()
         }
     }
 
@@ -507,12 +507,10 @@ struct EntryView: View {
             if existing != nil {
                 week.sleepNotes.removeValue(forKey: dayName)
                 week.updatedAt = Date()
-                showSavedToast()
             }
         } else if newWake != (existing?.wakeUp ?? "") || newBed != (existing?.bedTime ?? "") {
             week.sleepNotes[dayName] = SleepData(wakeUp: newWake, bedTime: newBed)
             week.updatedAt = Date()
-            showSavedToast()
         }
     }
 
@@ -527,7 +525,6 @@ struct EntryView: View {
         } else {
             week.healthNotes[dayName] = data
             week.updatedAt = Date()
-            showSavedToast()
         }
     }
 
@@ -542,13 +539,7 @@ struct EntryView: View {
         } else {
             week.therapyNotes[dayName] = therapySessions
             week.updatedAt = Date()
-            showSavedToast()
         }
-    }
-
-    private func showSavedToast() {
-        toastIsError = false
-        toastMessage = "Saved"
     }
 
     // MARK: - Parse Entry (explicit action — sends to Claude)
@@ -580,6 +571,7 @@ struct EntryView: View {
             }
             week.parsedEntries[dayName] = parsed
             week.updatedAt = Date()
+            try? modelContext.save()
             inputText = ""; selectedImage = nil; photoPickerItem = nil
             toastIsError = false; toastMessage = "\(dayName) logged!"
         } catch {
@@ -615,6 +607,7 @@ struct EntryView: View {
         if let existing = currentWeek { return existing }
         let newWeek = WeekEntry(weekId: weekKey)
         modelContext.insert(newWeek)
+        try? modelContext.save()
         return newWeek
     }
 }
