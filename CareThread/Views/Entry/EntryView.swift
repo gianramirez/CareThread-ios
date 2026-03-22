@@ -265,9 +265,17 @@ struct EntryView: View {
                 }
 
                 Button("Re-enter This Day", role: .destructive) {
-                    currentWeek?.parsedEntries.removeValue(forKey: dayName)
-                    currentWeek?.entries.removeValue(forKey: dayName)
-                    currentWeek?.updatedAt = Date()
+                    if let week = currentWeek {
+                        var parsed = week.parsedEntries
+                        parsed.removeValue(forKey: dayName)
+                        week.parsedEntries = parsed
+
+                        var entries = week.entries
+                        entries.removeValue(forKey: dayName)
+                        week.entries = entries
+
+                        week.updatedAt = Date()
+                    }
                 }
                 .font(.caption)
             }
@@ -487,14 +495,20 @@ struct EntryView: View {
 
     private func autoSaveNotes() {
         let week = getOrCreateWeek()
+        var changed = false
         if morningNote != (week.morningNotes[dayName] ?? "") {
-            week.morningNotes[dayName] = morningNote.isEmpty ? nil : morningNote
-            week.updatedAt = Date()
+            var notes = week.morningNotes
+            notes[dayName] = morningNote.isEmpty ? nil : morningNote
+            week.morningNotes = notes
+            changed = true
         }
         if eveningNote != (week.eveningNotes[dayName] ?? "") {
-            week.eveningNotes[dayName] = eveningNote.isEmpty ? nil : eveningNote
-            week.updatedAt = Date()
+            var notes = week.eveningNotes
+            notes[dayName] = eveningNote.isEmpty ? nil : eveningNote
+            week.eveningNotes = notes
+            changed = true
         }
+        if changed { week.updatedAt = Date() }
     }
 
     private func autoSaveSleep() {
@@ -505,11 +519,15 @@ struct EntryView: View {
 
         if newWake.isEmpty && newBed.isEmpty {
             if existing != nil {
-                week.sleepNotes.removeValue(forKey: dayName)
+                var sleep = week.sleepNotes
+                sleep.removeValue(forKey: dayName)
+                week.sleepNotes = sleep
                 week.updatedAt = Date()
             }
         } else if newWake != (existing?.wakeUp ?? "") || newBed != (existing?.bedTime ?? "") {
-            week.sleepNotes[dayName] = SleepData(wakeUp: newWake, bedTime: newBed)
+            var sleep = week.sleepNotes
+            sleep[dayName] = SleepData(wakeUp: newWake, bedTime: newBed)
+            week.sleepNotes = sleep
             week.updatedAt = Date()
         }
     }
@@ -519,11 +537,15 @@ struct EntryView: View {
         let data = HealthData(status: healthStatus, symptoms: healthSymptoms)
         if data.isEmpty {
             if week.healthNotes[dayName] != nil {
-                week.healthNotes.removeValue(forKey: dayName)
+                var health = week.healthNotes
+                health.removeValue(forKey: dayName)
+                week.healthNotes = health
                 week.updatedAt = Date()
             }
         } else {
-            week.healthNotes[dayName] = data
+            var health = week.healthNotes
+            health[dayName] = data
+            week.healthNotes = health
             week.updatedAt = Date()
         }
     }
@@ -533,11 +555,15 @@ struct EntryView: View {
         let nonEmpty = therapySessions.filter { !$0.isEmpty }
         if nonEmpty.isEmpty {
             if week.therapyNotes[dayName] != nil {
-                week.therapyNotes.removeValue(forKey: dayName)
+                var therapy = week.therapyNotes
+                therapy.removeValue(forKey: dayName)
+                week.therapyNotes = therapy
                 week.updatedAt = Date()
             }
         } else {
-            week.therapyNotes[dayName] = therapySessions
+            var therapy = week.therapyNotes
+            therapy[dayName] = therapySessions
+            week.therapyNotes = therapy
             week.updatedAt = Date()
         }
     }
@@ -547,11 +573,16 @@ struct EntryView: View {
     private func parseEntry() async {
         let week = getOrCreateWeek()
 
-        // Auto-save morning data before parsing
-        if !morningNote.isEmpty { week.morningNotes[dayName] = morningNote }
+        if !morningNote.isEmpty {
+            var notes = week.morningNotes
+            notes[dayName] = morningNote
+            week.morningNotes = notes
+        }
         if !wakeUpTime.isEmpty {
             let existingBed = week.sleepNotes[dayName]?.bedTime ?? ""
-            week.sleepNotes[dayName] = SleepData(wakeUp: wakeUpTime, bedTime: existingBed)
+            var sleep = week.sleepNotes
+            sleep[dayName] = SleepData(wakeUp: wakeUpTime, bedTime: existingBed)
+            week.sleepNotes = sleep
         }
 
         do {
@@ -563,19 +594,35 @@ struct EntryView: View {
                     ? inputText
                     : contextPrefix + "\n\nDAYCARE SHEET:\n" + inputText
                 parsed = try await apiService.parseDayEntry(text: enrichedText)
-                week.entries[dayName] = inputText
             } else {
                 guard let image = selectedImage else { return }
                 parsed = try await apiService.parseDayEntry(image: image)
-                week.entries[dayName] = "[Screenshot]"
             }
-            week.parsedEntries[dayName] = parsed
+            var updatedParsed = week.parsedEntries
+            updatedParsed[dayName] = parsed
+            week.parsedEntries = updatedParsed
+
+            if inputMode == .text {
+                var updatedEntries = week.entries
+                updatedEntries[dayName] = inputText
+                week.entries = updatedEntries
+            } else {
+                var updatedEntries = week.entries
+                updatedEntries[dayName] = "[Screenshot]"
+                week.entries = updatedEntries
+            }
+
             week.updatedAt = Date()
             try? modelContext.save()
             inputText = ""; selectedImage = nil; photoPickerItem = nil
             toastIsError = false; toastMessage = "\(dayName) logged!"
         } catch {
-            toastIsError = true; toastMessage = "Couldn't parse that — try again."
+            toastIsError = true
+            if let apiError = apiService.lastError {
+                toastMessage = apiError
+            } else {
+                toastMessage = error.localizedDescription
+            }
         }
     }
 

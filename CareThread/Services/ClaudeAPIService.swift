@@ -102,6 +102,7 @@ class ClaudeAPIService {
     private var baseURL: String
     private let maxTokens = 1024
     private let model = "claude-sonnet-4-20250514"
+    var lastError: String?
     private var debugAPIKey: String?
 
     var isLoading = false
@@ -167,6 +168,8 @@ class ClaudeAPIService {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
+            let errorBody = String(data: data, encoding: .utf8) ?? "No error body"
+            lastError = "HTTP \(httpResponse.statusCode): \(errorBody)"
             throw ClaudeAPIError.invalidResponse(statusCode: httpResponse.statusCode)
         }
 
