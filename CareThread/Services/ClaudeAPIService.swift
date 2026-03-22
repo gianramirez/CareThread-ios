@@ -293,10 +293,26 @@ class ClaudeAPIService {
         return try await callClaude(system: Prompts.monthlyReport, messages: [message])
     }
 
+    func generateCategorySummary(categoryId: String, weekData: String) async throws -> String {
+        isLoading = true
+        loadingMessage = "Analyzing \(categoryId)..."
+        defer {
+            isLoading = false
+            loadingMessage = ""
+        }
+
+        let message = ClaudeMessage(role: "user", content: .text(weekData))
+        return try await callClaude(
+            system: Prompts.categorySummary(for: categoryId),
+            messages: [message]
+        )
+    }
+
     // MARK: - Private Helpers
 
     private func buildRequest() -> (URL?, [String: String]) {
         if let apiKey = debugAPIKey, !apiKey.isEmpty {
+            // Development: call Anthropic directly with your key
             let url = URL(string: "https://api.anthropic.com/v1/messages")
             let headers = [
                 "Content-Type": "application/json",
@@ -305,10 +321,14 @@ class ClaudeAPIService {
             ]
             return (url, headers)
         } else {
+            // Production: call through your Cloudflare proxy
             let url = URL(string: baseURL)
-            let headers = [
-                "Content-Type": "application/json"
+            var headers = [
+                "Content-Type": "application/json",
             ]
+            if !AppConfig.appSecret.isEmpty {
+                headers["X-App-Secret"] = AppConfig.appSecret
+            }
             return (url, headers)
         }
     }
@@ -340,10 +360,17 @@ class ClaudeAPIService {
 // MARK: - App Configuration
 
 nonisolated enum AppConfig {
-    static let apiBaseURL = "https://your-proxy.workers.dev/api/claude"
+    // Production: set this to your Cloudflare Worker URL after deploying
+    // e.g. "https://carethread-proxy.YOUR_SUBDOMAIN.workers.dev"
+    static let apiBaseURL = "https://carethread-proxy.carethread.workers.dev"
 
+    // Shared secret between your app and your proxy (set both to the same value)
+    static let appSecret = "bbc9e038a82450a62968ba9aa99e3575020ec4318708f78a654c0aff68625727"
+
+    // Development only: reads from Secrets.swift for direct API calls
+    // When appSecret is set and apiBaseURL points to your proxy, this is ignored
     static var debugAPIKey: String? {
-        let key = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"]
-        return (key?.isEmpty ?? true) ? nil : key
+        let key = Secrets.anthropicAPIKey
+        return key.isEmpty ? nil : key
     }
 }

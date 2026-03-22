@@ -20,6 +20,7 @@ final class WeekEntry {
     var sleepNotes: [String: SleepData]
     var healthNotes: [String: HealthData]
     var therapyNotes: [String: [TherapyEntry]]
+    var categorySummaries: [String: CachedSummary]
     var report: String?
     var careReport: String?
     var updatedAt: Date
@@ -33,6 +34,7 @@ final class WeekEntry {
         self.sleepNotes = [:]
         self.healthNotes = [:]
         self.therapyNotes = [:]
+        self.categorySummaries = [:]
         self.report = nil
         self.careReport = nil
         self.updatedAt = Date()
@@ -136,6 +138,13 @@ enum TherapyType: String, Codable, CaseIterable, Identifiable {
     case other = "Other"
 
     var id: String { rawValue }
+}
+
+// MARK: - Cached Category Summary
+
+struct CachedSummary: Codable {
+    var text: String
+    var generatedAt: Date
 }
 
 struct TherapyEntry: Codable, Identifiable {

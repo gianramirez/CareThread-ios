@@ -88,13 +88,34 @@ struct DashboardView: View {
             GridItem(.flexible(), spacing: 12),
         ], spacing: 12) {
             ForEach(Categories.all) { category in
-                categoryCard(category)
+                NavigationLink {
+                    CategoryDetailView(
+                        categoryId: category.id,
+                        categoryLabel: category.label,
+                        systemIcon: category.systemIcon,
+                        currentMonday: $currentMonday
+                    )
+                } label: {
+                    categoryCardContent(category)
+                }
+                .buttonStyle(.plain)
             }
-            healthCard
+
+            NavigationLink {
+                CategoryDetailView(
+                    categoryId: "health",
+                    categoryLabel: "Health",
+                    systemIcon: "heart.text.clipboard",
+                    currentMonday: $currentMonday
+                )
+            } label: {
+                healthCardContent
+            }
+            .buttonStyle(.plain)
         }
     }
 
-    private func categoryCard(_ category: TrackingCategory) -> some View {
+    private func categoryCardContent(_ category: TrackingCategory) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: category.systemIcon)
@@ -102,8 +123,12 @@ struct DashboardView: View {
                 Text(category.label)
                     .font(.subheadline.weight(.semibold))
                 Spacer()
-                StatusLabel(rating: weekCategoryRating(category.id))
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
+
+            StatusLabel(rating: weekCategoryRating(category.id))
 
             HStack(spacing: 4) {
                 ForEach(0..<7, id: \.self) { dayIndex in
@@ -122,7 +147,7 @@ struct DashboardView: View {
         .cardStyle()
     }
 
-    private var healthCard: some View {
+    private var healthCardContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "heart.text.clipboard")
@@ -130,8 +155,12 @@ struct DashboardView: View {
                 Text("Health")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
-                StatusLabel(rating: weekHealthRating)
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
+
+            StatusLabel(rating: weekHealthRating)
 
             HStack(spacing: 4) {
                 ForEach(0..<7, id: \.self) { dayIndex in

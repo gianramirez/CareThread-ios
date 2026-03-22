@@ -132,6 +132,67 @@ enum Prompts {
     If therapy context is provided, note relevant observations.
     """
 
+    static func categorySummary(for categoryId: String) -> String {
+        let categoryName: String
+        let breakdownInstructions: String
+
+        switch categoryId {
+        case "eating":
+            categoryName = "Eating"
+            breakdownInstructions = """
+            Under "Ate Well", list specific foods the child ate grouped by day.
+            Under "Refused / Low Intake", list foods refused or barely touched, grouped by day.
+            Note any patterns (e.g. consistently refusing vegetables, loving fruit).
+            """
+        case "naps":
+            categoryName = "Naps"
+            breakdownInstructions = """
+            Under "Nap Times", list each day's nap duration and timing.
+            Under "Patterns", note consistency, short naps, or skipped naps.
+            If home sleep data (wake up / bed time) is available, include it.
+            """
+        case "potty":
+            categoryName = "Potty"
+            breakdownInstructions = """
+            Under "Daily Log", list each day's potty events (successful attempts, accidents, diaper changes).
+            Under "Progress", note any potty training milestones or regressions.
+            """
+        case "mood":
+            categoryName = "Mood & Behavior"
+            breakdownInstructions = """
+            Under "Daily Mood", list each day's mood and behavior summary.
+            Under "Patterns", note triggers, consistent good/bad days, or behavioral trends.
+            Include teacher observations and activity context where relevant.
+            """
+        case "health":
+            categoryName = "Health"
+            breakdownInstructions = """
+            Under "Daily Status", list each day's health status and any symptoms.
+            Under "Concerns", note any illness progression, recurring symptoms, or doctor visits.
+            """
+        default:
+            categoryName = "Category"
+            breakdownInstructions = "Provide a daily breakdown of the data."
+        }
+
+        return """
+        You are a warm, insightful childcare analyst. A parent wants a focused weekly summary \
+        for their toddler's \(categoryName) data.
+
+        Write a response with two sections:
+
+        ## Summary
+        A warm 2-4 sentence overview of how the week went for \(categoryName). \
+        Be specific — reference actual days and details. Highlight what went well and any concerns.
+
+        ## Breakdown
+        \(breakdownInstructions)
+
+        Keep the tone warm and parent-friendly. Be specific with food names, times, and details. \
+        Use the day names (Monday, Tuesday, etc.) to organize the breakdown.
+        """
+    }
+
     static let monthlyReport = """
     You are a comprehensive childcare analyst writing a monthly summary for a care team. \
     You will receive multiple weekly reports. Analyze them together and write a monthly summary.

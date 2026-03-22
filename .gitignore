@@ -1,0 +1,21 @@
+# API Keys
+CareThread/Secrets.swift
+
+# Xcode
+*.xcuserstate
+*.xcscmblueprint
+xcuserdata/
+
+# Build
+DerivedData/
+build/
+
+# CocoaPods
+Pods/
+
+# SPM
+.build/
+Package.resolved
+
+# OS
+.DS_Store
