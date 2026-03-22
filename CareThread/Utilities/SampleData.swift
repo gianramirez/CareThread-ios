@@ -41,6 +41,7 @@ enum SampleData {
         week.morningNotes["Monday"] = "Woke up cranky, didn't want breakfast. Took a while to get dressed."
         week.eveningNotes["Monday"] = "Had a meltdown at bath time. Calmed down with books."
         week.sleepNotes["Monday"] = SleepData(wakeUp: "6:15", bedTime: "7:30")
+        week.healthNotes["Monday"] = HealthData(status: .healthy, symptoms: "")
 
         // MARK: - Tuesday — screenshot entry (fully logged)
         week.entries["Tuesday"] = "[Screenshot]"
@@ -67,6 +68,10 @@ enum SampleData {
         )
         week.morningNotes["Tuesday"] = "Great morning! Ate all his oatmeal and was excited for school."
         week.sleepNotes["Tuesday"] = SleepData(wakeUp: "7:00", bedTime: "8:15")
+        week.healthNotes["Tuesday"] = HealthData(status: .mildSick, symptoms: "Runny nose, slight cough")
+        week.therapyNotes["Tuesday"] = [
+            TherapyEntry(type: .speech, notes: "Worked on two-word phrases. Good engagement with picture cards.")
+        ]
 
         // MARK: - Wednesday — morning-only (no daycare data yet)
         week.morningNotes["Wednesday"] = "Slept in a bit, seemed well-rested. Had half a banana before leaving."
@@ -97,6 +102,9 @@ enum SampleData {
         )
         week.sleepNotes["Thursday"] = SleepData(wakeUp: "6:30", bedTime: "7:45")
         week.eveningNotes["Thursday"] = "Played outside after dinner, went to bed easily."
+        week.therapyNotes["Thursday"] = [
+            TherapyEntry(type: .ot, notes: "Fine motor work — practiced pincer grasp with small beads. Showed improvement from last week.")
+        ]
 
         // MARK: - Friday, Saturday, Sunday — no data
 

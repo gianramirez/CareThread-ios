@@ -24,14 +24,19 @@ struct EntryView: View {
 
     @Query private var allWeeks: [WeekEntry]
 
-    @State private var inputText = ""
+    // MARK: - Local State
+
     @State private var morningNote = ""
     @State private var eveningNote = ""
     @State private var wakeUpTime = ""
     @State private var bedTime = ""
+    @State private var inputText = ""
     @State private var inputMode: InputMode = .text
     @State private var selectedImage: UIImage?
     @State private var photoPickerItem: PhotosPickerItem?
+    @State private var healthStatus: HealthStatus = .healthy
+    @State private var healthSymptoms = ""
+    @State private var therapySessions: [TherapyEntry] = []
     @State private var toastMessage: String?
     @State private var toastIsError = false
 
@@ -63,6 +68,8 @@ struct EntryView: View {
                     }
                 }
 
+                healthSection
+                therapySection
                 eveningSection
             }
             .padding()
@@ -103,7 +110,7 @@ struct EntryView: View {
         }
     }
 
-    // MARK: - Morning Check-In
+    // MARK: - Morning Check-In (auto-saves on blur)
 
     private var morningCheckInSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -114,6 +121,8 @@ struct EntryView: View {
                 TextField("e.g. 6:30", text: $wakeUpTime)
                     .textFieldStyle(.roundedBorder)
                     .keyboardType(.numbersAndPunctuation)
+                    .onSubmit { autoSaveSleep() }
+                    .onChange(of: wakeUpTime) { _, _ in debounceAutoSaveSleep() }
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -124,20 +133,13 @@ struct EntryView: View {
                     .background(AppTheme.inputBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.border, lineWidth: 1))
+                    .onChange(of: morningNote) { _, _ in debounceAutoSaveNotes() }
             }
-
-            Button {
-                saveMorningInfo()
-            } label: {
-                Label("Save Morning Info", systemImage: "sun.max")
-                    .frame(maxWidth: .infinity).padding(.vertical, 10)
-            }
-            .buttonStyle(.bordered)
         }
         .cardStyle()
     }
 
-    // MARK: - Daycare Input
+    // MARK: - Daycare Input (still needs explicit "Log" button for Claude parsing)
 
     private var daycareInputSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -229,12 +231,13 @@ struct EntryView: View {
     private var parsedResultsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let parsed = currentWeek?.parsedEntries[dayName] {
-                categoryResult(icon: "🍽", label: "Eating", data: parsed.eating)
-                categoryResult(icon: "😴", label: "Naps", data: parsed.naps)
-                categoryResult(icon: "🚽", label: "Potty", data: parsed.potty)
+                categoryResult(icon: "fork.knife", label: "Eating", data: parsed.eating)
+                categoryResult(icon: "bed.double.fill", label: "Naps", data: parsed.naps)
+                categoryResult(icon: "drop.fill", label: "Potty", data: parsed.potty)
 
                 HStack {
-                    Text("😊")
+                    Image(systemName: "face.smiling")
+                        .foregroundStyle(AppTheme.color(for: parsed.moodRating))
                     Text("Mood").font(.subheadline.weight(.semibold))
                     Spacer()
                     StatusLabel(rating: parsed.moodRating)
@@ -275,7 +278,8 @@ struct EntryView: View {
     private func categoryResult(icon: String, label: String, data: CategoryData) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(icon)
+                Image(systemName: icon)
+                    .foregroundStyle(AppTheme.color(for: data.rating))
                 Text(label).font(.subheadline.weight(.semibold))
                 Spacer()
                 StatusLabel(rating: data.rating)
@@ -297,13 +301,117 @@ struct EntryView: View {
             Label("Weekend — Home Tracking Only", systemImage: "house.fill")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
-            Text("No daycare sheet needed. Use the notes and sleep fields below to track the day at home.")
+            Text("No daycare sheet needed. Use health, therapy, notes, and sleep fields to track the day at home.")
                 .font(.caption).foregroundStyle(.tertiary)
         }
         .cardStyle()
     }
 
-    // MARK: - Evening
+    // MARK: - Health Section (auto-saves)
+
+    private var healthSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "heart.text.clipboard")
+                    .foregroundStyle(AppTheme.color(for: healthStatus.rating))
+                Text("Health").font(.headline)
+            }
+
+            Picker("Status", selection: $healthStatus) {
+                ForEach(HealthStatus.allCases) { status in
+                    Text(status.rawValue).tag(status)
+                }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: healthStatus) { _, _ in autoSaveHealth() }
+
+            if healthStatus != .healthy {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Symptoms").font(.subheadline.weight(.medium))
+                    TextEditor(text: $healthSymptoms)
+                        .frame(minHeight: 60)
+                        .padding(8)
+                        .background(AppTheme.inputBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.border, lineWidth: 1))
+                        .onChange(of: healthSymptoms) { _, _ in debounceAutoSaveHealth() }
+                }
+            }
+        }
+        .cardStyle()
+    }
+
+    // MARK: - Therapy Section (auto-saves)
+
+    private var therapySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "figure.walk")
+                    .foregroundStyle(AppTheme.accent)
+                Text("Therapy").font(.headline)
+                Spacer()
+                Button {
+                    therapySessions.append(TherapyEntry())
+                    autoSaveTherapy()
+                } label: {
+                    Label("Add Session", systemImage: "plus.circle.fill")
+                        .font(.subheadline)
+                }
+            }
+
+            if therapySessions.isEmpty {
+                Text("No therapy sessions logged. Tap + to add one.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+
+            ForEach($therapySessions) { $session in
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Picker("Type", selection: $session.type) {
+                            ForEach(TherapyType.allCases) { type in
+                                Text(type.rawValue).tag(type)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: session.type) { _, _ in autoSaveTherapy() }
+
+                        Button(role: .destructive) {
+                            therapySessions.removeAll { $0.id == session.id }
+                            autoSaveTherapy()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    TextEditor(text: $session.notes)
+                        .frame(minHeight: 50)
+                        .padding(8)
+                        .background(AppTheme.inputBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.border, lineWidth: 1))
+                        .overlay(alignment: .topLeading) {
+                            if session.notes.isEmpty {
+                                Text("What was worked on, progress notes...")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.tertiary)
+                                    .padding(.leading, 12)
+                                    .padding(.top, 16)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                        .onChange(of: session.notes) { _, _ in debounceAutoSaveTherapy() }
+                }
+                .padding(8)
+                .background(Color(.tertiarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .cardStyle()
+    }
+
+    // MARK: - Evening (auto-saves)
 
     private var eveningSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -314,6 +422,8 @@ struct EntryView: View {
                 TextField("e.g. 8:00", text: $bedTime)
                     .textFieldStyle(.roundedBorder)
                     .keyboardType(.numbersAndPunctuation)
+                    .onSubmit { autoSaveSleep() }
+                    .onChange(of: bedTime) { _, _ in debounceAutoSaveSleep() }
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -324,23 +434,135 @@ struct EntryView: View {
                     .background(AppTheme.inputBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.border, lineWidth: 1))
+                    .onChange(of: eveningNote) { _, _ in debounceAutoSaveNotes() }
             }
-
-            Button {
-                saveEveningInfo()
-            } label: {
-                Label("Save Evening Info", systemImage: "moon.stars")
-                    .frame(maxWidth: .infinity).padding(.vertical, 10)
-            }
-            .buttonStyle(.bordered)
         }
         .cardStyle()
     }
 
-    // MARK: - Actions
+    // MARK: - Auto-Save Logic
+
+    @State private var saveTask: Task<Void, Never>?
+
+    private func debounceAutoSaveNotes() {
+        saveTask?.cancel()
+        saveTask = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            autoSaveNotes()
+        }
+    }
+
+    private func debounceAutoSaveSleep() {
+        saveTask?.cancel()
+        saveTask = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            autoSaveSleep()
+        }
+    }
+
+    private func debounceAutoSaveHealth() {
+        saveTask?.cancel()
+        saveTask = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            autoSaveHealth()
+        }
+    }
+
+    private func debounceAutoSaveTherapy() {
+        saveTask?.cancel()
+        saveTask = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            autoSaveTherapy()
+        }
+    }
+
+    private func autoSaveNotes() {
+        let week = getOrCreateWeek()
+        var changed = false
+        if morningNote != (week.morningNotes[dayName] ?? "") {
+            week.morningNotes[dayName] = morningNote.isEmpty ? nil : morningNote
+            changed = true
+        }
+        if eveningNote != (week.eveningNotes[dayName] ?? "") {
+            week.eveningNotes[dayName] = eveningNote.isEmpty ? nil : eveningNote
+            changed = true
+        }
+        if changed {
+            week.updatedAt = Date()
+            showSavedToast()
+        }
+    }
+
+    private func autoSaveSleep() {
+        let week = getOrCreateWeek()
+        let existing = week.sleepNotes[dayName]
+        let newWake = wakeUpTime.isEmpty ? (existing?.wakeUp ?? "") : wakeUpTime
+        let newBed = bedTime.isEmpty ? (existing?.bedTime ?? "") : bedTime
+
+        if newWake.isEmpty && newBed.isEmpty {
+            if existing != nil {
+                week.sleepNotes.removeValue(forKey: dayName)
+                week.updatedAt = Date()
+                showSavedToast()
+            }
+        } else if newWake != (existing?.wakeUp ?? "") || newBed != (existing?.bedTime ?? "") {
+            week.sleepNotes[dayName] = SleepData(wakeUp: newWake, bedTime: newBed)
+            week.updatedAt = Date()
+            showSavedToast()
+        }
+    }
+
+    private func autoSaveHealth() {
+        let week = getOrCreateWeek()
+        let data = HealthData(status: healthStatus, symptoms: healthSymptoms)
+        if data.isEmpty {
+            if week.healthNotes[dayName] != nil {
+                week.healthNotes.removeValue(forKey: dayName)
+                week.updatedAt = Date()
+            }
+        } else {
+            week.healthNotes[dayName] = data
+            week.updatedAt = Date()
+            showSavedToast()
+        }
+    }
+
+    private func autoSaveTherapy() {
+        let week = getOrCreateWeek()
+        let nonEmpty = therapySessions.filter { !$0.isEmpty }
+        if nonEmpty.isEmpty {
+            if week.therapyNotes[dayName] != nil {
+                week.therapyNotes.removeValue(forKey: dayName)
+                week.updatedAt = Date()
+            }
+        } else {
+            week.therapyNotes[dayName] = therapySessions
+            week.updatedAt = Date()
+            showSavedToast()
+        }
+    }
+
+    private func showSavedToast() {
+        toastIsError = false
+        toastMessage = "Saved"
+    }
+
+    // MARK: - Parse Entry (explicit action — sends to Claude)
 
     private func parseEntry() async {
         let week = getOrCreateWeek()
+
+        // Auto-save morning data before parsing
+        if !morningNote.isEmpty { week.morningNotes[dayName] = morningNote }
+        if !wakeUpTime.isEmpty {
+            let existingBed = week.sleepNotes[dayName]?.bedTime ?? ""
+            week.sleepNotes[dayName] = SleepData(wakeUp: wakeUpTime, bedTime: existingBed)
+        }
+
         do {
             let parsed: ParsedDayData
             let contextPrefix = buildMorningContext()
@@ -357,55 +579,11 @@ struct EntryView: View {
                 week.entries[dayName] = "[Screenshot]"
             }
             week.parsedEntries[dayName] = parsed
-            if !morningNote.isEmpty { week.morningNotes[dayName] = morningNote }
             week.updatedAt = Date()
             inputText = ""; selectedImage = nil; photoPickerItem = nil
             toastIsError = false; toastMessage = "\(dayName) logged!"
         } catch {
             toastIsError = true; toastMessage = "Couldn't parse that — try again."
-        }
-    }
-
-    private func saveMorningInfo() {
-        let week = getOrCreateWeek()
-        if !morningNote.isEmpty { week.morningNotes[dayName] = morningNote }
-        let existingBedTime = week.sleepNotes[dayName]?.bedTime ?? bedTime
-        if !wakeUpTime.isEmpty {
-            week.sleepNotes[dayName] = SleepData(wakeUp: wakeUpTime, bedTime: existingBedTime)
-        }
-        week.updatedAt = Date()
-
-        if hasParsedData {
-            Task { await reparseWithMorningContext() }
-        } else {
-            toastIsError = false; toastMessage = "Morning info saved!"
-        }
-    }
-
-    private func reparseWithMorningContext() async {
-        guard let week = currentWeek,
-              let rawEntry = week.entries[dayName] else {
-            toastIsError = false; toastMessage = "Morning info saved!"
-            return
-        }
-
-        if rawEntry == "[Screenshot]" {
-            toastIsError = false
-            toastMessage = "Morning info saved!"
-            return
-        }
-
-        do {
-            let contextPrefix = buildMorningContext()
-            let enrichedText = contextPrefix.isEmpty
-                ? rawEntry
-                : contextPrefix + "\n\nDAYCARE SHEET:\n" + rawEntry
-            let parsed = try await apiService.parseDayEntry(text: enrichedText)
-            week.parsedEntries[dayName] = parsed
-            week.updatedAt = Date()
-            toastIsError = false; toastMessage = "Morning info saved & summary refreshed!"
-        } catch {
-            toastIsError = false; toastMessage = "Morning info saved!"
         }
     }
 
@@ -420,22 +598,16 @@ struct EntryView: View {
         return context
     }
 
-    private func saveEveningInfo() {
-        let week = getOrCreateWeek()
-        if !eveningNote.isEmpty { week.eveningNotes[dayName] = eveningNote }
-        let existingWakeUp = week.sleepNotes[dayName]?.wakeUp ?? wakeUpTime
-        if !bedTime.isEmpty {
-            week.sleepNotes[dayName] = SleepData(wakeUp: existingWakeUp, bedTime: bedTime)
-        }
-        week.updatedAt = Date()
-        toastIsError = false; toastMessage = "Evening info saved!"
-    }
+    // MARK: - Load / Create
 
     private func loadExistingData() {
-        eveningNote = currentWeek?.eveningNotes[dayName] ?? ""
         morningNote = currentWeek?.morningNotes[dayName] ?? ""
+        eveningNote = currentWeek?.eveningNotes[dayName] ?? ""
         wakeUpTime = currentWeek?.sleepNotes[dayName]?.wakeUp ?? ""
         bedTime = currentWeek?.sleepNotes[dayName]?.bedTime ?? ""
+        healthStatus = currentWeek?.healthNotes[dayName]?.status ?? .healthy
+        healthSymptoms = currentWeek?.healthNotes[dayName]?.symptoms ?? ""
+        therapySessions = currentWeek?.therapyNotes[dayName] ?? []
         inputText = ""; selectedImage = nil
     }
 

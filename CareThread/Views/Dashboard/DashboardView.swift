@@ -90,13 +90,15 @@ struct DashboardView: View {
             ForEach(Categories.all) { category in
                 categoryCard(category)
             }
+            healthCard
         }
     }
 
     private func categoryCard(_ category: TrackingCategory) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(category.icon)
+                Image(systemName: category.systemIcon)
+                    .foregroundStyle(AppTheme.color(for: weekCategoryRating(category.id)))
                 Text(category.label)
                     .font(.subheadline.weight(.semibold))
                 Spacer()
@@ -118,6 +120,44 @@ struct DashboardView: View {
             }
         }
         .cardStyle()
+    }
+
+    private var healthCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "heart.text.clipboard")
+                    .foregroundStyle(AppTheme.color(for: weekHealthRating))
+                Text("Health")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                StatusLabel(rating: weekHealthRating)
+            }
+
+            HStack(spacing: 4) {
+                ForEach(0..<7, id: \.self) { dayIndex in
+                    let dayName = DateHelpers.dayNames[dayIndex]
+                    let rating = currentWeek?.healthNotes[dayName]?.status.rating ?? .none
+
+                    VStack(spacing: 2) {
+                        Text(DateHelpers.shortDayNames[dayIndex])
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                        StatusDot(rating: rating, size: 8)
+                    }
+                }
+            }
+        }
+        .cardStyle()
+    }
+
+    private var weekHealthRating: StatusRating {
+        let ratings = DateHelpers.dayNames.compactMap {
+            currentWeek?.healthNotes[$0]?.status.rating
+        }
+        if ratings.isEmpty { return .none }
+        if ratings.contains(.red) { return .red }
+        if ratings.contains(.yellow) { return .yellow }
+        return .green
     }
 
     private func dayRating(for categoryId: String, day: String) -> StatusRating {
@@ -147,6 +187,8 @@ struct DashboardView: View {
                 let dayName = DateHelpers.dayNames[dayIndex]
                 let hasData = currentWeek?.hasData(for: dayName) ?? false
                 let hasEveningNote = !(currentWeek?.eveningNotes[dayName]?.isEmpty ?? true)
+                let hasHealth = currentWeek?.healthNotes[dayName] != nil
+                let hasTherapy = !(currentWeek?.therapyNotes[dayName]?.isEmpty ?? true)
 
                 Button {
                     activeDay = dayIndex
@@ -166,6 +208,16 @@ struct DashboardView: View {
                                     Image(systemName: "house.fill")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
+                                }
+                                if hasHealth {
+                                    Image(systemName: "heart.text.clipboard")
+                                        .font(.caption)
+                                        .foregroundStyle(AppTheme.color(for: currentWeek?.healthNotes[dayName]?.status.rating ?? .none))
+                                }
+                                if hasTherapy {
+                                    Image(systemName: "figure.walk")
+                                        .font(.caption)
+                                        .foregroundStyle(AppTheme.accent)
                                 }
                             }
 
@@ -259,6 +311,18 @@ struct DashboardView: View {
             }
             if let sleep = week.sleepNotes[dayName] {
                 weekData += "Sleep: Wake \(sleep.wakeUp), Bed \(sleep.bedTime)\n"
+            }
+            if let health = week.healthNotes[dayName] {
+                weekData += "Health: \(health.status.rawValue)"
+                if !health.symptoms.isEmpty {
+                    weekData += " — Symptoms: \(health.symptoms)"
+                }
+                weekData += "\n"
+            }
+            if let sessions = week.therapyNotes[dayName], !sessions.isEmpty {
+                for session in sessions {
+                    weekData += "Therapy (\(session.type.rawValue)): \(session.notes)\n"
+                }
             }
             weekData += "\n"
         }

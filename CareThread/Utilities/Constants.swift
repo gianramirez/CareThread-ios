@@ -10,7 +10,6 @@ import Foundation
 struct TrackingCategory: Identifiable {
     let id: String
     let label: String
-    let icon: String
     let systemIcon: String
 
     func data(from parsed: ParsedDayData) -> CategoryData {
@@ -26,10 +25,10 @@ struct TrackingCategory: Identifiable {
 
 enum Categories {
     static let all: [TrackingCategory] = [
-        TrackingCategory(id: "eating", label: "Eating", icon: "🍽", systemIcon: "fork.knife"),
-        TrackingCategory(id: "naps", label: "Naps", icon: "😴", systemIcon: "bed.double.fill"),
-        TrackingCategory(id: "potty", label: "Potty", icon: "🚽", systemIcon: "drop.fill"),
-        TrackingCategory(id: "mood", label: "Mood", icon: "😊", systemIcon: "face.smiling"),
+        TrackingCategory(id: "eating", label: "Eating", systemIcon: "fork.knife"),
+        TrackingCategory(id: "naps", label: "Naps", systemIcon: "bed.double.fill"),
+        TrackingCategory(id: "potty", label: "Potty", systemIcon: "drop.fill"),
+        TrackingCategory(id: "mood", label: "Mood", systemIcon: "face.smiling"),
     ]
 }
 
@@ -92,6 +91,14 @@ enum Prompts {
     ## Potty Trends
     Any notable patterns or progress.
 
+    ## Health & Wellness
+    Any illness, symptoms, doctor visits, or health concerns noted during the week. \
+    If the child was healthy all week, note that positively.
+
+    ## Therapy Updates
+    Summarize any therapy sessions (OT, Speech, PT, ABA) including what was worked on and any progress. \
+    If no therapy data was provided, skip this section.
+
     ## Routine & Schedule
     How well they adapted to their schedule, any deviations.
 
@@ -117,6 +124,8 @@ enum Prompts {
     - **Sleep**: 2-3 sentences. Flags only.
     - **Potty**: 2-3 sentences. Flags only.
     - **Mood/Behavior**: 2-3 sentences. Flags only.
+    - **Health**: Note any illness, symptoms, or doctor visits. If healthy all week, state briefly.
+    - **Therapy**: Summarize sessions and progress. Note any concerns or regressions.
     - **Flags**: Bullet list of anything notable for the care team.
 
     Keep the tone clinical and concise. No fluff. Focus on patterns, regressions, or concerns. \
@@ -133,6 +142,12 @@ enum Prompts {
 
     ## Trends
     What patterns emerged across the weeks? Improving, stable, or regressing?
+
+    ## Health Summary
+    Overview of any illness patterns, recurring symptoms, or doctor visits across the month.
+
+    ## Therapy Progress
+    Summarize therapy activities and progress across the month. Note any milestones or concerns.
 
     ## Progress
     Notable developmental progress or milestones.
